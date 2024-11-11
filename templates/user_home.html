@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Home</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { display: flex; }
+        .column { width: 50%; padding: 20px; }
+        h2 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { padding: 5px 10px; color: #fff; background-color: #007BFF; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <h1>Welcome to Your Dashboard</h1>
+    
+    <div class="container">
+        <!-- View Previous Games Column -->
+        <div class="column">
+            <h2>View a Previous Game</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player 1</th>
+                        <th>Player 2</th>
+                        <th>Start Point</th>
+                        <th>End Point</th>
+                        <th>Status</th>
+                        <th>Info</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for game in previous_games %}
+                    <tr>
+                        <td>{{ game.player1 }}</td>
+                        <td>{{ game.player2 }}</td>
+                        <td>{{ game.start_point }}</td>
+                        <td>{{ game.end_point }}</td>
+                        <td>{{ game.status }}</td>
+                        <td><button onclick="window.location.href='{{ url_for('game_info', game_id=game.game_id) }}'">View</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Join a Lobby Column -->
+        <div class="column">
+            <h2>Join a Lobby</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Min Experience Level</th>
+                        <th>Time Limit (min)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lobby in available_lobbies %}
+                    <tr>
+                        <td>{{ lobby.min_experience_level }}</td>
+                        <td>{{ lobby.time_limit_minutes }}</td>
+                        <td><button onclick="window.location.href='{{ url_for('join_lobby', lobby_id=lobby.lobby_id) }}'">Join</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>
+
