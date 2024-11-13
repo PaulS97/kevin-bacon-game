@@ -17,6 +17,12 @@
     </style>
 </head>
 <body>
+    <p>User: {{ username }}</p>
+    <p>User ID: {{ user_id }}</p>
+    <p>Message: {{ message }}</p>
+    <p>Message Lobby ID: {{ message_lobby_id }}</p>
+
+
 
     <h1>Welcome to Your Dashboard</h1>
     
@@ -66,13 +72,22 @@
                     <tr>
                         <td>{{ lobby.min_experience_level }}</td>
                         <td>{{ lobby.time_limit_minutes }}</td>
-                        <td><button onclick="window.location.href='{{ url_for('join_lobby', lobby_id=lobby.lobby_id) }}'">Join</button></td>
+                        <td>
+                            <button onclick="window.location.href='{{ url_for('join_lobby', lobby_id=lobby.lobby_id, username=username, user_id=user_id) }}'">
+                                Join
+                            </button>
+                            {% if message and message_lobby_id|int == lobby.lobby_id %}
+                                <span style="color: red; margin-left: 10px;">{{ message }}</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+
+
 
 </body>
 </html>

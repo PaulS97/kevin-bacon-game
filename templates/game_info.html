@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Info</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .chain-item { margin: 20px 0; }
+        .arrow { font-size: 24px; color: gray; }
+        .ellipsis { font-size: 24px; color: gray; }
+        .return-button { margin-top: 20px; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>Game Info</h1>
+
+    <!-- Start Point -->
+    <div class="chain-item">
+        <h2>{{ start_end.start_actor_name }}</h2>
+        <img src="{{ start_end.start_actor_picture }}" alt="Start Actor" width="100">
+    </div>
+
+    {% if has_moves %}
+        <div class="arrow">↓</div>
+
+        <!-- Chain Moves -->
+        {% for move in chain %}
+            {% if loop.index % 2 == 1 %}
+                <!-- Display Movie on Odd Move Number -->
+                <div class="chain-item">
+                    <h3>{{ move.movie_title }}</h3>
+                    <img src="{{ move.movie_poster }}" alt="Movie Poster" width="100">
+                </div>
+            {% else %}
+                <!-- Display Actor on Even Move Number -->
+                <div class="chain-item">
+                    <h3>{{ move.actor_name }}</h3>
+                    <img src="{{ move.actor_picture }}" alt="Actor Picture" width="100">
+                </div>
+            {% endif %}
+            {% if not loop.last %}
+                <div class="arrow">↓</div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <!-- Display End Point Only if No Moves Exist -->
+        <div class="ellipsis">...</div>
+        <div class="chain-item">
+            <h2>{{ start_end.end_actor_name }}</h2>
+            <img src="{{ start_end.end_actor_picture }}" alt="End Actor" width="100">
+        </div>
+    {% endif %}
+
+    <!-- Return Button -->
+    <button class="return-button" onclick="window.history.back()">Return</button>
+
+</body>
+</html>
+
+

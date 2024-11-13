@@ -56,44 +56,44 @@ DATABASEURI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_SERVER}/w4111"
 engine = create_engine(DATABASEURI)
 
 ########Tests Start#############################
-# Query a small sample from the Users table
-try:
-    with engine.connect() as conn:
-        print("Querying Users table...")
-        result = conn.execute(text("SELECT * FROM ps3399.test LIMIT 5"))
-        users = result.fetchall()
-        print("Sample data from Users table:")
-        for user in users:
-            print(user)  # Print each row in the terminal
-except Exception as e:
-    print(f"An error occurred while querying Users table: {e}")
-
-
-# Here we create a test table and insert some values in it
-
-try:
-    with engine.connect() as conn:
-        print("Dropping table if it exists...")
-        conn.execute(text("DROP TABLE IF EXISTS ps3399.test;"))
-        print("Creating table...")
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS ps3399.test (
-                id serial PRIMARY KEY,
-                name text
-            );
-        """))
-        conn.commit()  # Commit the transaction
-        print("Inserting test data...")
-        conn.execute(text("""
-            INSERT INTO ps3399.test (name) VALUES
-            ('grace hopper'),
-            ('alan turing'),
-            ('ada lovelace');
-        """))
-        conn.commit()  # Commit the transaction again after inserting
-        print("Table creation and data insertion successful!")
-except Exception as e:
-    print(f"An error occurred: {e}")
+## Query a small sample from the Users table
+#try:
+#    with engine.connect() as conn:
+#        print("Querying Users table...")
+#        result = conn.execute(text("SELECT * FROM ps3399.test LIMIT 5"))
+#        users = result.fetchall()
+#        print("Sample data from Users table:")
+#        for user in users:
+#            print(user)  # Print each row in the terminal
+#except Exception as e:
+#    print(f"An error occurred while querying Users table: {e}")
+#
+#
+## Here we create a test table and insert some values in it
+#
+#try:
+#    with engine.connect() as conn:
+#        print("Dropping table if it exists...")
+#        conn.execute(text("DROP TABLE IF EXISTS ps3399.test;"))
+#        print("Creating table...")
+#        conn.execute(text("""
+#            CREATE TABLE IF NOT EXISTS ps3399.test (
+#                id serial PRIMARY KEY,
+#                name text
+#            );
+#        """))
+#        conn.commit()  # Commit the transaction
+#        print("Inserting test data...")
+#        conn.execute(text("""
+#            INSERT INTO ps3399.test (name) VALUES
+#            ('grace hopper'),
+#            ('alan turing'),
+#            ('ada lovelace');
+#        """))
+#        conn.commit()  # Commit the transaction again after inserting
+#        print("Table creation and data insertion successful!")
+#except Exception as e:
+#    print(f"An error occurred: {e}")
 
 
     
@@ -165,10 +165,13 @@ def check_login():
         query = text("SELECT * FROM ps3399.users WHERE username = :username AND password = :password")
         result = g.conn.execute(query, {"username": username, "password": password}).fetchone()
 
+
         # Check if a match was found
         if result:
             # Redirect to the user home page if credentials match
-            return redirect(url_for('user_home', username=username))
+            user_id = result[0]
+            print(f"Redirecting to user_home with username: {username}, user_id: {user_id}")
+            return redirect(url_for('user_home', username=username, user_id = user_id))
         else:
             # Show an error message if credentials are incorrect
             error = "Incorrect username or password"
@@ -180,10 +183,21 @@ def check_login():
 @app.route('/user_home')
 def user_home():
     username = request.args.get('username')
-    if not username:
+    user_id = request.args.get('user_id')
+    message = request.args.get('message')  # These will be None if not passed
+    message_lobby_id = request.args.get('message_lobby_id')
+    
+    print(f"Username: {username}, User ID: {user_id}, Message: {message}, Message Lobby ID: {message_lobby_id}")
+
+    # Debugging print to check the extracted username
+    if username:
+        print(f"Extracted username: {username}")
+        print(f"Extracted user_id: {user_id}")
+    else:
+        print("No username found. Redirecting to login.")
         return redirect(url_for('login'))  # Redirect to login if not logged in
+
         
-    print("username:", username)
 
     
     # Sample query to retrieve the user's previous games
@@ -213,121 +227,148 @@ def user_home():
     """
     available_lobbies = g.conn.execute(text(available_lobbies_query)).fetchall()
 
-    for game in previous_games:
-        print(game)
+ 
         
-    
-
-
     # Render template with retrieved data
-    return render_template("user_home.html", previous_games=previous_games, available_lobbies=available_lobbies)
+    return render_template(
+    "user_home.html",
+    previous_games=previous_games,
+    available_lobbies=available_lobbies,
+    username=username,
+    user_id=user_id,
+    message=message,
+    message_lobby_id=message_lobby_id
+)
+
 
 # Route to handle lobby joining
 @app.route('/join_lobby/<int:lobby_id>')
 def join_lobby(lobby_id):
-    # Handle joining the lobby (insert into database, etc.)
-    # Redirect back to user_home or display success message
-    return redirect(url_for('user_home'))
+    # Get the user's ID and username from the request
+    user_id = request.args.get('user_id')
+    username = request.args.get('username')  # Capture the username
+
+    # Query the user's experience level
+    user_experience_query = """
+    SELECT experience_level
+    FROM users
+    WHERE user_id = :user_id;
+    """
+    user_experience = g.conn.execute(text(user_experience_query), {"user_id": user_id}).fetchone()
     
-# Route to handle lobby joining
+    if username:
+        print(f"Lobby username: {username}")
+    else:
+        print("No lobby username found. Redirecting to login.")
+        return redirect(url_for('login'))  # Redirect to login if not logged in
+
+
+    if not user_experience:
+        # Handle case where user ID is invalid
+        return redirect(url_for('user_home', user_id=user_id, username=username, message="User not found.", message_lobby_id=lobby_id ))
+
+    # Extract the user's experience level
+    user_experience_level = user_experience[0]
+
+    # Query the lobby's minimum experience level
+    lobby_experience_query = """
+    SELECT min_experience_level
+    FROM lobbies
+    WHERE lobby_id = :lobby_id;
+    """
+    lobby_experience = g.conn.execute(text(lobby_experience_query), {"lobby_id": lobby_id}).fetchone()
+
+    if not lobby_experience:
+        # Handle case where lobby ID is invalid
+        return redirect(url_for('user_home', user_id=user_id, username=username, message="Lobby not found.", message_lobby_id = lobby_id))
+
+    # Extract the lobby's minimum experience level
+    min_experience_level = lobby_experience[0]
+
+    # Check if the user has enough experience
+    if user_experience_level < min_experience_level:
+        # Redirect back to user home with an insufficient experience message
+        return redirect(url_for('user_home', user_id=user_id, username=username, message="Insufficient Experience", message_lobby_id = lobby_id))
+
+    # Query to check if the lobby already has a user
+    existing_user_query = """
+    SELECT user_id
+    FROM users
+    WHERE lobby_id = :lobby_id;
+    """
+    existing_users = g.conn.execute(text(existing_user_query), {"lobby_id": lobby_id}).fetchall()
+
+    if not existing_users:
+        # Update the user's lobby ID if the lobby is empty
+        update_lobby_query = """
+        UPDATE users
+        SET lobby_id = :lobby_id
+        WHERE user_id = :user_id;
+        """
+        g.conn.execute(text(update_lobby_query), {"lobby_id": lobby_id, "user_id": user_id})
+        return redirect(url_for('user_home', user_id=user_id, username=username, message="Waiting", message_lobby_id = lobby_id))
+    else:
+        # Take the first user in the lobby and prepare for game start (dummy for now)
+        other_user_id = existing_users[0][0]
+        query = text("""
+        UPDATE ps3399.Users
+        SET Lobby_id = NULL
+        WHERE User_id = :other_user_id
+        """)
+
+        # Execute the query, replacing `other_user_id` with the actual user ID, this will remove the player that was waiting from the lobby
+        g.conn.execute(query, {"other_user_id": other_user_id})
+        
+        return redirect(url_for('start_game', user_id=user_id, username=username, other_user_id=other_user_id))
+
+
+    
 @app.route('/game_info/<int:game_id>')
 def game_info(game_id):
-    # Handle joining the lobby (insert into database, etc.)
-    # Redirect back to user_home or display success message
-    return redirect(url_for('user_home'))
+    # Query to get the moves in the chain
+    chain_query = """
+    SELECT actors.name AS actor_name, actors.picture AS actor_picture,
+           movies.title AS movie_title, movies.poster AS movie_poster,
+           chains.move_number, games.finished
+    FROM chains
+    JOIN acts_in_connections ON chains.connection_id = acts_in_connections.connection_id
+    JOIN movies ON movies.movie_id = acts_in_connections.movie_id
+    JOIN actors ON actors.actor_id = acts_in_connections.actor_id
+    JOIN games ON games.game_id = chains.game_id
+    WHERE chains.game_id = :game_id
+    ORDER BY chains.move_number;
+    """
+    
+    # Execute the chain query
+    chain_results = g.conn.execute(text(chain_query), {"game_id": game_id}).fetchall()
+
+    # Query to get the start and end points
+    start_end_query = """
+    SELECT a1.name AS start_actor_name, a1.picture AS start_actor_picture,
+           a2.name AS end_actor_name, a2.picture AS end_actor_picture
+    FROM games
+    JOIN actors AS a1 ON games.start_point = a1.actor_id
+    JOIN actors AS a2 ON games.end_point = a2.actor_id
+    WHERE games.game_id = :game_id;
+    """
+    
+    # Execute the start and end query
+    start_end_results = g.conn.execute(text(start_end_query), {"game_id": game_id}).fetchone()
+
+    # Check if moves exist
+    has_moves = bool(chain_results)
+
+    # Render the template with both queries' results and the flag
+    return render_template(
+        "game_info.html",
+        chain=chain_results,
+        start_end=start_end_results,
+        has_moves=has_moves
+    )
 
 
 
-@app.route('/names')
-def index():
-  """
-  request is a special object that Flask provides to access web request information:
 
-  request.method:   "GET" or "POST"
-  request.form:     if the browser submitted a form, this contains the data in the form
-  request.args:     dictionary of URL arguments e.g., {a:1, b:2} for http://localhost?a=1&b=2
-
-  See its API: http://flask.pocoo.org/docs/0.10/api/#incoming-request-data
-  """
-
-  # DEBUG: this is debugging code to see what request looks like
-  print(request.args)
-
-
-  #
-  # example of a database query
-  #
-  print("Starting index route...")
-  try:
-        # Attempting database query without `text()`
-        print("Querying database for names...")
-        print("Type of g.conn:", type(g.conn))
-        cursor = g.conn.execute(text("SELECT name FROM ps3399.test"))
-        #names = [result['name'] for result in cursor]
-        names = [result[0] for result in cursor]  # Access the 'name' column by index
-        cursor.close()
-        print("Names retrieved from database:", names)
-  except Exception as e:
-        # If an error occurs, print it for debugging
-        print(f"Error during database query: {e}")
-        names = []  # Fallback in case of error
-
-  #
-  # Flask uses Jinja templates, which is an extension to HTML where you can
-  # pass data to a template and dynamically generate HTML based on the data
-  # (you can think of it as simple PHP)
-  # documentation: https://realpython.com/blog/python/primer-on-jinja-templating/
-  #
-  # You can see an example template in templates/index.html
-  #
-  # context are the variables that are passed to the template.
-  # for example, "data" key in the context variable defined below will be 
-  # accessible as a variable in index.html:
-  #
-  #     # will print: [u'grace hopper', u'alan turing', u'ada lovelace']
-  #     <div>{{data}}</div>
-  #     
-  #     # creates a <div> tag for each element in data
-  #     # will print: 
-  #     #
-  #     #   <div>grace hopper</div>
-  #     #   <div>alan turing</div>
-  #     #   <div>ada lovelace</div>
-  #     #
-  #     {% for n in data %}
-  #     <div>{{n}}</div>
-  #     {% endfor %}
-  #
-  context = dict(data = names)
-
-
-  #
-  # render_template looks in the templates/ folder for files.
-  # for example, the below file reads template/index.html
-  #
-  return render_template("index.html", **context)
-
-#
-# This is an example of a different path.  You can see it at
-# 
-#     localhost:8111/another
-#
-# notice that the functio name is another() rather than index()
-# the functions for each app.route needs to have different names
-#
-@app.route('/another')
-def another():
-  return render_template("anotherfile.html")
-
-
-# Example of adding new data to the database
-@app.route('/add', methods=['POST'])
-def add():
-  name = request.form['name']
-  print(name)
-  cmd = 'INSERT INTO test(name) VALUES (:name1), (:name2)';
-  g.conn.execute(text(cmd), name1 = name, name2 = name);
-  return redirect('/')
 
 
 if __name__ == "__main__":
