@@ -16,14 +16,43 @@ Read about it online.
 """
 
 import os
+import signal
+import sys
 from sqlalchemy import *
+from sqlalchemy.sql import text
 from sqlalchemy.pool import NullPool
 from flask import Flask, request, render_template, g, redirect, Response, url_for
+from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
 
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 app = Flask(__name__, template_folder=tmpl_dir)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Graceful shutdown on Ctrl+C
+def shutdown_server():
+    print("Shutting down server...")
+    try:
+        # Notify all connected clients
+        socketio.emit("server_shutdown", {"message": "The server is shutting down. Please reconnect later."}, broadcast=True)
+
+        # Use os._exit() for an immediate exit
+        import os
+        os._exit(0)  # Immediately terminates the process
+    except Exception as e:
+        print(f"Error during shutdown: {e}")
+        os._exit(1)  # Use exit code 1 for errors
 
 
+signal.signal(signal.SIGINT, shutdown_server)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"Socket disconnected for User ID: {request.args.get('user_id')}")
+
+
+# Attach signal handlers for SIGINT and SIGTERM
+signal.signal(signal.SIGINT, shutdown_server)  # For Ctrl+C
+signal.signal(signal.SIGTERM, shutdown_server)  # For termination
 
 # XXX: The Database URI should be in the format of: 
 #
@@ -55,49 +84,7 @@ DATABASEURI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_SERVER}/w4111"
 #
 engine = create_engine(DATABASEURI)
 
-########Tests Start#############################
-## Query a small sample from the Users table
-#try:
-#    with engine.connect() as conn:
-#        print("Querying Users table...")
-#        result = conn.execute(text("SELECT * FROM ps3399.test LIMIT 5"))
-#        users = result.fetchall()
-#        print("Sample data from Users table:")
-#        for user in users:
-#            print(user)  # Print each row in the terminal
-#except Exception as e:
-#    print(f"An error occurred while querying Users table: {e}")
-#
-#
-## Here we create a test table and insert some values in it
-#
-#try:
-#    with engine.connect() as conn:
-#        print("Dropping table if it exists...")
-#        conn.execute(text("DROP TABLE IF EXISTS ps3399.test;"))
-#        print("Creating table...")
-#        conn.execute(text("""
-#            CREATE TABLE IF NOT EXISTS ps3399.test (
-#                id serial PRIMARY KEY,
-#                name text
-#            );
-#        """))
-#        conn.commit()  # Commit the transaction
-#        print("Inserting test data...")
-#        conn.execute(text("""
-#            INSERT INTO ps3399.test (name) VALUES
-#            ('grace hopper'),
-#            ('alan turing'),
-#            ('ada lovelace');
-#        """))
-#        conn.commit()  # Commit the transaction again after inserting
-#        print("Table creation and data insertion successful!")
-#except Exception as e:
-#    print(f"An error occurred: {e}")
 
-
-    
-######## Start and End Stuff #############################
 
 @app.before_request
 def before_request():
@@ -241,85 +228,298 @@ def user_home():
 )
 
 
-# Route to handle lobby joining
-@app.route('/join_lobby/<int:lobby_id>')
-def join_lobby(lobby_id):
-    # Get the user's ID and username from the request
-    user_id = request.args.get('user_id')
-    username = request.args.get('username')  # Capture the username
 
-    # Query the user's experience level
-    user_experience_query = """
-    SELECT experience_level
-    FROM users
-    WHERE user_id = :user_id;
-    """
-    user_experience = g.conn.execute(text(user_experience_query), {"user_id": user_id}).fetchone()
+
+@socketio.on("join_lobby")
+def handle_join_lobby(data):
+    lobby_id = data["lobby_id"]
+    user_id = data["user_id"]
+    room_name = f"lobby_{lobby_id}"
+
+    join_room(room_name)
+    print(f"User {user_id} joined lobby {lobby_id}")
     
-    if username:
-        print(f"Lobby username: {username}")
-    else:
-        print("No lobby username found. Redirecting to login.")
-        return redirect(url_for('login'))  # Redirect to login if not logged in
-
-
-    if not user_experience:
-        # Handle case where user ID is invalid
-        return redirect(url_for('user_home', user_id=user_id, username=username, message="User not found.", message_lobby_id=lobby_id ))
-
-    # Extract the user's experience level
-    user_experience_level = user_experience[0]
-
-    # Query the lobby's minimum experience level
-    lobby_experience_query = """
-    SELECT min_experience_level
-    FROM lobbies
-    WHERE lobby_id = :lobby_id;
-    """
-    lobby_experience = g.conn.execute(text(lobby_experience_query), {"lobby_id": lobby_id}).fetchone()
-
-    if not lobby_experience:
-        # Handle case where lobby ID is invalid
-        return redirect(url_for('user_home', user_id=user_id, username=username, message="Lobby not found.", message_lobby_id = lobby_id))
-
-    # Extract the lobby's minimum experience level
-    min_experience_level = lobby_experience[0]
-
-    # Check if the user has enough experience
-    if user_experience_level < min_experience_level:
-        # Redirect back to user home with an insufficient experience message
-        return redirect(url_for('user_home', user_id=user_id, username=username, message="Insufficient Experience", message_lobby_id = lobby_id))
-
-    # Query to check if the lobby already has a user
-    existing_user_query = """
-    SELECT user_id
-    FROM users
-    WHERE lobby_id = :lobby_id;
-    """
-    existing_users = g.conn.execute(text(existing_user_query), {"lobby_id": lobby_id}).fetchall()
-
-    if not existing_users:
-        # Update the user's lobby ID if the lobby is empty
-        update_lobby_query = """
-        UPDATE users
-        SET lobby_id = :lobby_id
-        WHERE user_id = :user_id;
-        """
-        g.conn.execute(text(update_lobby_query), {"lobby_id": lobby_id, "user_id": user_id})
-        return redirect(url_for('user_home', user_id=user_id, username=username, message="Waiting", message_lobby_id = lobby_id))
-    else:
-        # Take the first user in the lobby and prepare for game start (dummy for now)
-        other_user_id = existing_users[0][0]
-        query = text("""
-        UPDATE ps3399.Users
-        SET Lobby_id = NULL
-        WHERE User_id = :other_user_id
-        """)
-
-        # Execute the query, replacing `other_user_id` with the actual user ID, this will remove the player that was waiting from the lobby
-        g.conn.execute(query, {"other_user_id": other_user_id})
+    # Use `engine.connect()` for database operations
+    with engine.connect() as connection:
+        trans = connection.begin()  # Start a transaction here
         
-        return redirect(url_for('start_game', user_id=user_id, username=username, other_user_id=other_user_id))
+        try:
+            room_members = list(socketio.server.manager.get_participants("/", room_name))
+            print(f"Current participants in {room_name}: {room_members}")
+
+            # Update user's lobby_id
+            update_user_lobby = text("""
+                UPDATE Users SET Lobby_id = :lobby_id WHERE User_id = :user_id
+            """)
+            connection.execute(update_user_lobby, {"lobby_id": lobby_id, "user_id": user_id})
+            
+            if len(room_members) == 2:
+                game_id = create_game(connection, lobby_id, trans)  # Pass the transaction
+                other_user_id = get_other_user_in_room(connection, lobby_id, user_id)
+                if other_user_id is None:
+                    raise ValueError(f"Could not find other user in lobby {lobby_id}")
+                add_players_to_game(connection, game_id, user_id, other_user_id, trans)  # Pass the transaction
+                emit("start_game", {"game_id": game_id, "lobby_id": lobby_id}, room=room_name)
+
+
+            else:
+                emit("waiting", {"message": "Waiting for another player"}, room=room_name)
+
+            trans.commit()  # Commit all changes once complete
+        except Exception as e:
+            print(f"Error during join lobby: {e}")
+            trans.rollback()
+
+
+
+def get_other_user_in_room(connection, lobby_id, current_user_id):
+    """Fetch the other user's ID in the same lobby."""
+    print(f"Debug: lobby_id={lobby_id}, current_user_id={current_user_id}")
+    try:
+        query = text("""
+            SELECT User_id
+            FROM Users
+            WHERE Lobby_id = :lobby_id AND User_id != :current_user_id
+        """)
+        result = connection.execute(query, {"lobby_id": lobby_id, "current_user_id": current_user_id}).fetchone()
+        return result[0] if result else None
+    except Exception as e:
+        print(f"Error fetching other user in lobby: {e}")
+        return None
+
+
+def create_game(connection, lobby_id, trans):
+    try:
+        max_game_query = text("SELECT COALESCE(MAX(Game_id), 0) + 1 AS new_game_id FROM Games")
+        new_game_id = connection.execute(max_game_query).fetchone()[0]
+
+        time_limit_query = text("SELECT Time_limit_minutes FROM Lobbies WHERE Lobby_id = :lobby_id")
+        time_limit = connection.execute(time_limit_query, {"lobby_id": lobby_id}).fetchone()[0]
+
+        insert_game_query = text("""
+            INSERT INTO Games (Game_id, Time_limit_minutes, Finished)
+            VALUES (:game_id, :time_limit, FALSE)
+        """)
+        connection.execute(insert_game_query, {"game_id": new_game_id, "time_limit": time_limit})
+        print(f"Game {new_game_id} inserted successfully.")
+        return new_game_id
+    except Exception as e:
+        print(f"Error inserting game: {e}")
+        trans.rollback()
+        raise
+
+
+
+def add_players_to_game(connection, game_id, user1_id, user2_id, trans):
+    try:
+        insert_plays_query = text("""
+            INSERT INTO Plays (User_id, Game_id)
+            VALUES (:user_id, :game_id)
+        """)
+        connection.execute(insert_plays_query, {"user_id": user1_id, "game_id": game_id})
+        connection.execute(insert_plays_query, {"user_id": user2_id, "game_id": game_id})
+
+        reset_lobby_query = text("""
+            UPDATE Users SET Lobby_id = NULL WHERE User_id IN (:user1_id, :user2_id)
+        """)
+        connection.execute(reset_lobby_query, {"user1_id": user1_id, "user2_id": user2_id})
+
+        print(f"Players {user1_id} and {user2_id} added to game {game_id} and removed from lobby.")
+    except Exception as e:
+        print(f"Error adding players to game: {e}")
+        trans.rollback()
+        raise
+
+@socketio.on("leave_lobby")
+def handle_leave_lobby(data):
+    user_id = request.args.get("user_id")
+    lobby_id = request.args.get("lobby_id")  # You can also get lobby_id from `data` if needed
+    print(f"User {user_id} left lobby {lobby_id}.")
+
+    # Perform additional cleanup or leave the room
+    if lobby_id:
+        try:
+            leave_room(f"lobby_{lobby_id}")
+        except Exception as e:
+            print(f"Error during leave_lobby: {e}")
+
+
+@app.route("/gameplay/<int:game_id>")
+def gameplay(game_id):
+    # Extract user_id from the query parameters
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "Missing user_id", 400
+
+    # Fetch game details as a mapping
+    game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
+    game = g.conn.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+
+    if not game:
+        return "Game not found", 404
+
+    # Fetch players and determine roles
+    players_query = text("SELECT user_id FROM Plays WHERE game_id = :game_id ORDER BY user_id")
+    players = g.conn.execute(players_query, {"game_id": game_id}).mappings().fetchall()
+
+    if len(players) < 2:
+        return "Players not properly initialized", 400
+
+    start_setter = players[0]["user_id"]
+    end_setter = players[1]["user_id"]
+
+    # Logic for determining next action
+    if int(user_id) == start_setter:
+        if not game["start_point"]:
+            next_action = "start_point"  # Set start point
+        elif not game["end_point"]:
+            next_action = "waiting"  # Waiting for end-setter
+        else:
+            next_action = "play_game"  # Game starts
+    elif int(user_id) == end_setter:
+        if not game["end_point"]:
+            next_action = "end_point"  # Set end point
+        elif game["start_point"]:
+            next_action = "waiting"  # Waiting for gameplay
+        else:
+            next_action = "play_game"  # Game starts
+    else:
+        return "Invalid user", 400
+
+    # Include start and end point in the response
+    start_point = game["start_point"]
+    end_point = game["end_point"]
+
+    return render_template(
+        "gameplay.html",
+        game=game,
+        user_id=user_id,
+        start_point=start_point,
+        end_point=end_point,
+        next_action=next_action,
+    )
+
+
+
+
+
+@app.route("/set_start_point/<int:game_id>", methods=["POST"])
+def set_start_point(game_id):
+    # Retrieve the user_id from query parameters
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "Missing user_id", 400
+
+    # Process the start point
+    actor_name = request.form["actor_name"]
+    actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
+    actor = g.conn.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
+
+    if actor:
+        update_game_query = text(
+            "UPDATE Games SET start_point = :actor_id WHERE game_id = :game_id"
+        )
+        g.conn.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
+        g.conn.commit()
+
+        # Redirect back to gameplay with the user_id
+        return redirect(f"/gameplay/{game_id}?user_id={user_id}")
+    else:
+        return "Actor not found", 400
+
+
+@app.route("/set_end_point/<int:game_id>", methods=["POST"])
+def set_end_point(game_id):
+    # Retrieve the user_id from query parameters
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "Missing user_id", 400
+
+    # Process the end point
+    actor_name = request.form["actor_name"]
+    actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
+    actor = g.conn.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
+
+    if actor:
+        update_game_query = text(
+            "UPDATE Games SET end_point = :actor_id WHERE game_id = :game_id"
+        )
+        g.conn.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
+        g.conn.commit()
+
+        # Redirect back to gameplay with the user_id
+        return redirect(f"/gameplay/{game_id}?user_id={user_id}")
+    else:
+        return "Actor not found", 400
+
+
+
+@socketio.on("start_game")
+def handle_start_game(data):
+    lobby_id = data["lobby_id"]
+    game_id = data["game_id"]
+
+    # Emit to all players in the room that the game has started
+    emit("game_started", {"game_id": game_id}, room=f"lobby_{lobby_id}")
+    print(f"Game {game_id} started for lobby {lobby_id}")
+
+@app.route("/make_move/<int:game_id>", methods=["POST"])
+def make_move(game_id):
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "Missing user_id", 400
+
+    move_data = request.form.get("movie_name") or request.form.get("actor_name")
+    if not move_data:
+        return "Missing move data", 400
+
+    # Fetch game details to determine whose turn it is
+    game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
+    game = g.conn.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+
+    if not game:
+        return "Game not found", 404
+
+    # Record the move
+    insert_move_query = text("""
+        INSERT INTO Moves (game_id, user_id, move_data, move_number)
+        VALUES (:game_id, :user_id, :move_data, (
+            SELECT COALESCE(MAX(move_number), 0) + 1 FROM Moves WHERE game_id = :game_id
+        ))
+    """)
+    g.conn.execute(insert_move_query, {"game_id": game_id, "user_id": user_id, "move_data": move_data})
+    g.conn.commit()
+
+    # Redirect back to gameplay
+    return redirect(f"/gameplay/{game_id}?user_id={user_id}")
+
+
+@socketio.on("connect")
+def handle_gameplay_connect():
+    user_id = request.args.get("user_id")
+    game_id = request.args.get("game_id")
+    print(f"Gameplay socket: user_id={user_id}, game_id={game_id}")
+    if user_id and game_id:
+        join_room(f"game_{game_id}")
+        print(f"User {user_id} joined game {game_id}")
+    else:
+        print("Error: Missing user_id or game_id for gameplay socket.")
+
+
+
+
+@socketio.on("disconnect")
+def handle_disconnect():
+    user_id = request.args.get("user_id")
+    print(f"Socket disconnected for User ID: {user_id}")
+    
+    # Check if the user was in a game or a lobby and clean up
+    if request.args.get("game_id"):
+        print(f"User {user_id} disconnected from game.")
+    else:
+        print(f"User {user_id} disconnected from lobby.")
+
+
 
 
     
@@ -372,29 +572,29 @@ def game_info(game_id):
 
 
 if __name__ == "__main__":
-  import click
+    import click
 
-  @click.command()
-  @click.option('--debug', is_flag=True)
-  @click.option('--threaded', is_flag=True)
-  @click.argument('HOST', default='0.0.0.0')
-  @click.argument('PORT', default=8111, type=int)
-  def run(debug, threaded, host, port):
-    """
-    This function handles command line parameters.
-    Run the server using
+    @click.command()
+    @click.option('--debug', is_flag=True)
+    @click.option('--threaded', is_flag=True)
+    @click.argument('HOST', default='0.0.0.0')
+    @click.argument('PORT', default=8111, type=int)
+    def run(debug, threaded, host, port):
+        """
+        This function handles command line parameters.
+        Run the server using:
 
-        python server.py
+            python server.py
 
-    Show the help text using
+        Show the help text using:
 
-        python server.py --help
+            python server.py --help
+        """
+        HOST, PORT = host, port
+        print("running on %s:%d" % (HOST, PORT))
+        
+        # Use socketio.run to initialize the server with WebSocket support
+        socketio.run(app, host=HOST, port=PORT, debug=debug)
 
-    """
+    run()
 
-    HOST, PORT = host, port
-    print("running on %s:%d" % (HOST, PORT))
-    app.run(host=HOST, port=PORT, debug=debug, threaded=threaded)
-
-
-  run()

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gameplay</title>
+</head>
+<body>
+    <h1>Game ID: {{ game.game_id }}</h1>
+
+    {% if start_point %}
+        <p>Start Point: {{ start_point }}</p>
+    {% endif %}
+    {% if end_point %}
+        <p>End Point: {{ end_point }}</p>
+    {% endif %}
+
+    {% if next_action == "start_point" %}
+        <h2>Set the Start Point</h2>
+        <form action="/set_start_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+            <input type="text" name="actor_name" placeholder="Enter actor name">
+            <button type="submit">Submit</button>
+        </form>
+    {% elif next_action == "end_point" %}
+        <h2>Set the End Point</h2>
+        <form action="/set_end_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+            <input type="text" name="actor_name" placeholder="Enter actor name">
+            <button type="submit">Submit</button>
+        </form>
+    {% elif next_action == "play_game" %}
+        <h2>Game is starting!</h2>
+        <p>Waiting for the other player's move...</p>
+    {% elif next_action == "waiting" %}
+        <p>Waiting for the other player...</p>
+    {% endif %}
+
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script>
+        // Ensure any previous socket is closed before creating a new one
+        if (window.gameplaySocket) {
+            gameplaySocket.disconnect();
+        }
+
+        // Establish a new gameplay socket connection
+        const userId = "{{ request.args.get('user_id') }}"; // Ensure user_id is passed
+        const gameId = "{{ game.game_id }}"; // Passed from the game object
+        const gameplaySocket = io({
+            transports: ["websocket"],
+            query: {
+                user_id: userId,
+                game_id: gameId,
+            },
+        });
+
+        // Handle connection confirmation
+        gameplaySocket.on("connect", () => {
+            console.log(`Connected to gameplay socket! Game ID: ${gameId}, User ID: ${userId}`);
+        });
+
+        // Handle other game events
+        gameplaySocket.on("game_update", (data) => {
+            console.log("Game update received:", data);
+        });
+
+        // Store the socket globally for proper teardown
+        window.gameplaySocket = gameplaySocket;
+    </script>
+
+
+</body>
+</html>
+
+
+

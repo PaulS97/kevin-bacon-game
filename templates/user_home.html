@@ -73,7 +73,7 @@
                         <td>{{ lobby.min_experience_level }}</td>
                         <td>{{ lobby.time_limit_minutes }}</td>
                         <td>
-                            <button onclick="window.location.href='{{ url_for('join_lobby', lobby_id=lobby.lobby_id, username=username, user_id=user_id) }}'">
+                            <button onclick="initializeSocket({{ lobby.lobby_id }}, {{ user_id }})">
                                 Join
                             </button>
                             {% if message and message_lobby_id|int == lobby.lobby_id %}
@@ -87,6 +87,72 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script>
+        let socket; // Declare globally
+
+        function initializeSocket(lobbyId, userId) {
+            if (!socket) {
+                socket = io({
+                    transports: ['websocket'],
+                    query: { user_id: userId },
+                    reconnection: false, // No automatic reconnection
+                });
+            }
+
+            console.log("Socket:", socket); // Debugging
+            console.log("Emitting join_lobby", { lobby_id: lobbyId, user_id: userId });
+
+            // Ensure socket exists before emitting
+            if (socket) {
+                socket.emit("join_lobby", { lobby_id: lobbyId, user_id: userId });
+            } else {
+                console.error("Socket is not initialized!");
+            }
+            
+            // Log connection and disconnection events
+            socket.on("connect", () => {
+                console.log("Socket connected");
+            });
+
+            socket.on("disconnect", () => {
+                console.log("Socket disconnected");
+            });
+
+            socket.on('connect_error', (err) => {
+                console.error("Connection error:", err.message);
+            });
+            
+            socket.on("server_shutdown", (data) => {
+                console.warn(data.message);
+                socket.disconnect();
+            });
+            
+            // Disconnect the socket when the page is unloaded
+            window.addEventListener("beforeunload", () => {
+                socket.disconnect();
+            });
+            
+            
+            // Listen for the start_game event
+            // Handle the start_game event from the server
+            socket.on("start_game", (data) => {
+                console.log("Game started!", data);
+
+                // Disconnect from the lobby socket
+                socket.emit("leave_lobby", {}, () => {
+                    console.log("Left lobby. Disconnecting...");
+                    socket.disconnect();
+
+                    // Redirect to gameplay, where a new socket will be created
+                    window.location.href = `/gameplay/${data.game_id}?user_id=${userId}`;
+                });
+            });
+
+            
+            
+        }
+    </script>
 
 
 </body>
