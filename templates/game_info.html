@@ -53,8 +53,14 @@
         </div>
     {% endif %}
 
-    <!-- Return Button -->
-    <button class="return-button" onclick="window.history.back()">Return</button>
+    <!-- Return Button
+    <button class="return-button" onclick="window.history.back()">Return</button>-->
+    <button class="return-button" onclick="window.location.href='/user_home?user_id={{ user_id }}&username={{ username }}'">
+        Return to User Home
+    </button>
+
+
+
 
 </body>
 </html>

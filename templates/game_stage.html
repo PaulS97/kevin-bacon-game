@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Stage: {{ game.game_id }}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+</head>
+<body>
+    <h1>Game Stage: {{ game.game_id }}</h1>
+    <p><strong>Start Point:</strong> {{ start_actor }}</p>
+    <p><strong>End Point:</strong> {{ end_actor }}</p>
+
+    <div id="move_section">
+        <p>Waiting for your move...</p>
+    </div>
+
+    <form id="move_form" style="display: none;" action="javascript:void(0);">
+        <input type="text" id="move_input" name="move" placeholder="Enter your move">
+        <button type="submit">Submit Move</button>
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Ensure move_form is properly defined
+            const moveForm = document.getElementById("move_form");
+            const moveInput = document.getElementById("move_input");
+            const moveSection = document.getElementById("move_section");
+
+            const gameStageSocket = io({
+                transports: ["websocket"],
+                query: {
+                    user_id: "{{ user_id }}",
+                    game_id: "{{ game.game_id }}"
+                },
+            });
+
+            gameStageSocket.on("connect", () => {
+                console.log(`Connected to game stage for game {{ game.game_id }} as user {{ user_id }}`);
+                gameStageSocket.emit("player_ready_for_moves", {
+                    user_id: "{{ user_id }}",
+                    game_id: "{{ game.game_id }}"
+                });
+            });
+
+            // Check if it's the player's turn
+            let playerTurn = {{ player_turn }};
+            const userId = {{ user_id }};
+            const gameId = "{{ game.game_id }}";
+            let lastMoveId = "{{ last_move_id }}"; // Initialize from the rendered template
+            let moveType = "{{ move_type }}";
+
+            if (playerTurn === userId) {
+                showMoveInput();
+            } else {
+                moveSection.innerHTML = "<p>Waiting...</p>";
+            }
+
+            gameStageSocket.on("game_update", (data) => {
+                console.log("Game update received:", data);
+                console.log(`Updated move_type: ${data.move_type}, last_move_id: ${data.last_move_id}`);
+
+
+                // Update the last move ID dynamically
+                lastMoveId = data.last_move_id;
+                moveType = data.move_type;
+
+                // Update the displayed move
+                moveSection.innerHTML = `<p>Last Move: ${data.move}</p>`;
+
+                // Handle turn alternation
+                if (data.next_turn === parseInt(userId)) {
+                    showMoveInput();
+                    moveInput.dataset.lastMoveId = lastMoveId; // Store the updated last move ID
+                } else {
+                    hideMoveInput();
+                    moveSection.innerHTML += "<p>Waiting...</p>";
+                }
+            });
+            
+            // Handle game over event
+            gameStageSocket.on("game_over", (data) => {
+                console.log("Game over received:", data);
+
+                // Redirect to the game_info route to fetch game details
+                window.location.href = `/game_info/${data.game_id}?user_id=${userId}`;
+            });
+
+
+            // Modify the move submission event to include the dynamic lastMoveId
+            moveForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const moveValue = moveInput.value;
+
+                gameStageSocket.emit("make_move", {
+                    user_id: userId,
+                    game_id: gameId,
+                    move: moveValue,
+                    move_type: moveType, // Alternate on the server
+                    last_move_id: lastMoveId  // Send the updated last move ID
+                });
+
+                hideMoveInput();
+                moveSection.innerHTML = "<p>Move submitted. Waiting for opponent...</p>";
+            });
+
+            // Display the move input form
+            function showMoveInput() {
+                moveForm.style.display = "block";
+            }
+
+            function hideMoveInput() {
+                document.getElementById("move_input").value = ""; // Clear the input field
+                document.getElementById("move_form").style.display = "none";
+            }
+
+
+            // Handle game completion
+            gameStageSocket.on("game_over", (data) => {
+                moveSection.innerHTML = `<p>Game over! Winner: ${data.winner}</p>`;
+                hideMoveInput();
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 """
 Columbia W4111 Intro to databases
@@ -169,10 +168,11 @@ def check_login():
 
 @app.route('/user_home')
 def user_home():
-    username = request.args.get('username')
     user_id = request.args.get('user_id')
     message = request.args.get('message')  # These will be None if not passed
     message_lobby_id = request.args.get('message_lobby_id')
+    username = request.args.get('username')
+
     
     print(f"Username: {username}, User ID: {user_id}, Message: {message}, Message Lobby ID: {message_lobby_id}")
 
@@ -259,9 +259,13 @@ def handle_join_lobby(data):
                 if other_user_id is None:
                     raise ValueError(f"Could not find other user in lobby {lobby_id}")
                 add_players_to_game(connection, game_id, user_id, other_user_id, trans)  # Pass the transaction
-                emit("start_game", {"game_id": game_id, "lobby_id": lobby_id}, room=room_name)
-
-
+                # Emit the start_game event with additional information
+                # After create_game and add_players_to_game in join_lobby route
+                socketio.emit(
+                    "start_game",
+                    {"game_id": game_id, "user1_id": user_id, "user2_id": other_user_id},
+                    room=f"lobby_{lobby_id}"
+                )
             else:
                 emit("waiting", {"message": "Waiting for another player"}, room=room_name)
 
@@ -373,14 +377,14 @@ def gameplay(game_id):
         if not game["start_point"]:
             next_action = "start_point"  # Set start point
         elif not game["end_point"]:
-            next_action = "waiting"  # Waiting for end-setter
+            next_action = "play_game"  # Waiting for end-setter
         else:
             next_action = "play_game"  # Game starts
     elif int(user_id) == end_setter:
         if not game["end_point"]:
             next_action = "end_point"  # Set end point
         elif game["start_point"]:
-            next_action = "waiting"  # Waiting for gameplay
+            next_action = "play_game"  # Waiting for gameplay
         else:
             next_action = "play_game"  # Game starts
     else:
@@ -402,55 +406,81 @@ def gameplay(game_id):
 
 
 
-
 @app.route("/set_start_point/<int:game_id>", methods=["POST"])
 def set_start_point(game_id):
-    # Retrieve the user_id from query parameters
     user_id = request.args.get("user_id")
-    if not user_id:
-        return "Missing user_id", 400
-
-    # Process the start point
     actor_name = request.form["actor_name"]
-    actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
-    actor = g.conn.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
 
-    if actor:
-        update_game_query = text(
-            "UPDATE Games SET start_point = :actor_id WHERE game_id = :game_id"
-        )
-        g.conn.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
-        g.conn.commit()
+    with engine.connect() as connection:
+        actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
+        actor = connection.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
 
-        # Redirect back to gameplay with the user_id
-        return redirect(f"/gameplay/{game_id}?user_id={user_id}")
-    else:
-        return "Actor not found", 400
+        if actor:
+            update_game_query = text("UPDATE Games SET start_point = :actor_id WHERE game_id = :game_id")
+            connection.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
+            connection.commit()
+
+            # Determine the next action
+            game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
+            game = connection.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+            if game["end_point"]:
+                next_action = "play_game"
+            else:
+                next_action = "end_point"
+                
+            # Process player readiness
+            ready_count = process_player_ready(game_id, user_id)
+
+            # If both players are ready, skip re-rendering gameplay
+            if ready_count == 2:
+                print(f"Redirecting to /game_stage/{game_id}?user_id={user_id}&start_point={game['start_point']}&end_point={game['end_point']}")
+                return redirect(f"/game_stage/{game_id}?user_id={user_id}&start_point={game['start_point']}&end_point={game['end_point']}")
+            else:
+                #return "", 204  # Client dynamically updates UI
+                    # Redirect back to gameplay with updated next_action
+                return redirect(f"/gameplay/{game_id}?user_id={user_id}&next_action={next_action}")
+        else:
+            return "Actor not found", 400
+
 
 
 @app.route("/set_end_point/<int:game_id>", methods=["POST"])
 def set_end_point(game_id):
-    # Retrieve the user_id from query parameters
     user_id = request.args.get("user_id")
-    if not user_id:
-        return "Missing user_id", 400
-
-    # Process the end point
     actor_name = request.form["actor_name"]
-    actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
-    actor = g.conn.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
 
-    if actor:
-        update_game_query = text(
-            "UPDATE Games SET end_point = :actor_id WHERE game_id = :game_id"
-        )
-        g.conn.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
-        g.conn.commit()
+    with engine.connect() as connection:
+        actor_query = text("SELECT actor_id FROM Actors WHERE name = :actor_name")
+        actor = connection.execute(actor_query, {"actor_name": actor_name}).mappings().fetchone()
 
-        # Redirect back to gameplay with the user_id
-        return redirect(f"/gameplay/{game_id}?user_id={user_id}")
-    else:
-        return "Actor not found", 400
+        if actor:
+            update_game_query = text("UPDATE Games SET end_point = :actor_id WHERE game_id = :game_id")
+            connection.execute(update_game_query, {"actor_id": actor["actor_id"], "game_id": game_id})
+            connection.commit()
+
+            # Determine the next action
+            game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
+            game = connection.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+            if game["start_point"]:
+                next_action = "play_game"
+            else:
+                next_action = "start_point"
+                
+            
+            # Process player readiness
+            ready_count = process_player_ready(game_id, user_id)
+
+            # If both players are ready, skip re-rendering gameplay
+            if ready_count == 2:
+                print(f"Redirecting to /game_stage/{game_id}?user_id={user_id}&start_point={game['start_point']}&end_point={game['end_point']}")
+                return redirect(f"/game_stage/{game_id}?user_id={user_id}&start_point={game['start_point']}&end_point={game['end_point']}")
+            else:
+                #return "", 204  # Client dynamically updates UI
+                    # Redirect back to gameplay with updated next_action
+                return redirect(f"/gameplay/{game_id}?user_id={user_id}&next_action={next_action}")
+        else:
+            return "Actor not found", 400
+
 
 
 
@@ -463,47 +493,285 @@ def handle_start_game(data):
     emit("game_started", {"game_id": game_id}, room=f"lobby_{lobby_id}")
     print(f"Game {game_id} started for lobby {lobby_id}")
 
-@app.route("/make_move/<int:game_id>", methods=["POST"])
-def make_move(game_id):
+# Track readiness in-memory (consider using a database for persistence in production)
+ready_players = {}
+
+def process_player_ready(game_id, user_id):
+    global ready_players
+
+    # Initialize the ready_players entry for this game if it doesn't exist
+    if game_id not in ready_players:
+        ready_players[game_id] = set()
+
+    # Add the current player to the set of ready players
+    ready_players[game_id].add(user_id)
+    print(f"Player {user_id} is ready for game {game_id}. Ready players: {ready_players[game_id]}")
+
+    # Debugging: Print the length of ready players
+    print(f"Number of ready players for game {game_id}: {len(ready_players[game_id])}")
+
+    # Check if both players are ready
+    if len(ready_players[game_id]) == 2:
+        print(f"Both players are ready for game {game_id}. Emitting start_game.")
+
+        # Use a direct connection to fetch game details
+        with engine.connect() as connection:
+            game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
+            game = connection.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+
+            if not game or not game["start_point"] or not game["end_point"]:
+                print(f"Error: Missing start_point or end_point for game {game_id}.")
+                return
+                
+            print(f"Room members for game_{game_id}:")
+            if game_room_members := socketio.server.manager.rooms.get(f"game_{game_id}"):
+                for sid in game_room_members:
+                    print(f"- Session ID: {sid}")
+            else:
+                print(f"No members found in room: game_{game_id}")
+
+
+            # Emit start_game to individual player rooms
+            # Iterate through the set of user_ids for the specific game_id
+            for player_id in ready_players[game_id]:
+                if player_id!=user_id:
+                    room_name = f"game_{game_id}_player_{player_id}"
+                    print(f"Emitting start_game to room: {room_name} for User ID: {player_id}")
+                    socketio.sleep(1)  # Add a slight delay
+                    # Emit the start_game event to the player's individual room
+                    socketio.emit(
+                        "start_game",
+                        {
+                            "game_id": game_id,
+                            "user_id": player_id,  # Send the user ID specific to the player
+                            "start_point": game["start_point"],
+                            "end_point": game["end_point"]
+                        },
+                        room=room_name
+                    )
+                    print(f"Start_game emitted to room: {room_name}, for user_id: {player_id}")
+
+            print(f"Current rooms for game {game_id}: {socketio.server.rooms}")
+            return 2
+
+    else:
+        print(f"Waiting for more players to be ready for game {game_id}.")
+        return len(ready_players[game_id])
+
+
+@app.route("/game_stage/<int:game_id>")
+def game_stage(game_id):
+    # Extract user_id from query parameters
     user_id = request.args.get("user_id")
+    start_point = request.args.get("start_point")
+    end_point = request.args.get("end_point")
     if not user_id:
         return "Missing user_id", 400
 
-    move_data = request.form.get("movie_name") or request.form.get("actor_name")
-    if not move_data:
-        return "Missing move data", 400
-
-    # Fetch game details to determine whose turn it is
+    # Fetch game details
     game_query = text("SELECT * FROM Games WHERE game_id = :game_id")
     game = g.conn.execute(game_query, {"game_id": game_id}).mappings().fetchone()
 
     if not game:
         return "Game not found", 404
 
-    # Record the move
-    insert_move_query = text("""
-        INSERT INTO Moves (game_id, user_id, move_data, move_number)
-        VALUES (:game_id, :user_id, :move_data, (
-            SELECT COALESCE(MAX(move_number), 0) + 1 FROM Moves WHERE game_id = :game_id
-        ))
-    """)
-    g.conn.execute(insert_move_query, {"game_id": game_id, "user_id": user_id, "move_data": move_data})
-    g.conn.commit()
+    # Fetch the start and end points
+    start_actor_query = text("SELECT name FROM Actors WHERE actor_id = :actor_id")
+    start_actor = g.conn.execute(start_actor_query, {"actor_id": game["start_point"]}).mappings().fetchone()["name"]
 
-    # Redirect back to gameplay
-    return redirect(f"/gameplay/{game_id}?user_id={user_id}")
+    end_actor_query = text("SELECT name FROM Actors WHERE actor_id = :actor_id")
+    end_actor = g.conn.execute(end_actor_query, {"actor_id": game["end_point"]}).mappings().fetchone()["name"]
+
+    # Fetch game players
+    players_query = text("SELECT user_id FROM Plays WHERE game_id = :game_id")
+    players = g.conn.execute(players_query, {"game_id": game_id}).mappings().fetchall()
+    if len(players) != 2:
+        return "Invalid number of players in the game", 400
+
+    user1_id, user2_id = players[0]["user_id"], players[1]["user_id"]
+
+    # Determine the current player's turn based on the last move
+    last_move_query = text("""
+        SELECT user_id, move_number FROM Chains
+        WHERE game_id = :game_id
+        ORDER BY move_number DESC LIMIT 1
+    """)
+    last_move = g.conn.execute(last_move_query, {"game_id": game_id}).mappings().fetchone()
+
+    if last_move:
+        # Alternate between the two players
+        player_turn = user1_id if last_move["user_id"] == user2_id else user2_id
+        turn_number = last_move["move_number"] + 1
+    else:
+        # Start with user1 if no moves exist
+        player_turn = user1_id
+        turn_number = 0  # First move
+
+    # Determine move_type based on turn_number
+    move_type = "movie" if turn_number % 2 == 0 else "actor"
+
+    print(f"Debug: user1_id={user1_id}, user2_id={user2_id}")
+    print(f"Debug: last_move={last_move}")
+    print(f"Debug: Calculated player_turn={player_turn}, current user_id={user_id}")
+    print(f"Debug: move_type={move_type}, turn_number={turn_number}")
+    print(f"Debug: Rendering game_stage with start_actor={start_actor}, end_actor={end_actor}, user_id={user_id}, player_turn={player_turn}")
+
+    # Render the game_stage template
+    return render_template(
+        "game_stage.html",
+        game=game,
+        start_actor=start_actor,
+        end_actor=end_actor,
+        user_id=user_id,
+        player_turn=player_turn,
+        move_type=move_type,
+        last_move_id=game["start_point"]  # Initialize with start_point for the first render
+    )
+
+
+
+@socketio.on("make_move")
+def handle_make_move(data):
+    user_id = data.get("user_id")
+    game_id = data.get("game_id")
+    move = data.get("move")
+    move_type = data.get("move_type")
+    last_move_id = data.get("last_move_id")
+
+    print(f"Received move from user {user_id} for game {game_id}: {move}, move_type: {move_type}, last_move_id: {last_move_id}")
+
+    # Use an explicit connection to handle database operations
+    with engine.connect() as connection:
+        # Determine the move's ID based on the type (actor or movie)
+        if move_type == "actor":
+            move_query = text("SELECT actor_id FROM Actors WHERE name = :move_name")
+        elif move_type == "movie":
+            move_query = text("SELECT movie_id FROM Movies WHERE title = :move_name")
+        else:
+            print("Invalid move type.")
+            socketio.emit("game_error", {"message": "Invalid move type."}, room=f"game_{game_id}_player_{user_id}")
+            return
+        
+        move_result = connection.execute(move_query, {"move_name": move}).mappings().fetchone()
+        if not move_result:
+            print("Invalid move. Move not found in database.")
+            socketio.emit("game_error", {"message": "Invalid move. Please try again."}, room=f"game_{game_id}_player_{user_id}")
+            return
+        
+        current_move_id = move_result["actor_id"] if move_type == "actor" else move_result["movie_id"]
+
+        # Validate the connection exists
+        connection_query = text("""
+            SELECT connection_id FROM Acts_In_Connections
+            WHERE (actor_id = :actor_id AND movie_id = :movie_id)
+            OR (actor_id = :movie_id AND movie_id = :actor_id)
+        """)
+        connection_result = connection.execute(connection_query, {
+            "actor_id": current_move_id if move_type == "actor" else last_move_id,
+            "movie_id": current_move_id if move_type == "movie" else last_move_id
+        }).mappings().fetchone()
+
+        if not connection_result:
+            print("Invalid connection. This move is not valid.")
+            socketio.emit("game_error", {"message": "Invalid connection. Please try again."}, room=f"game_{game_id}_player_{user_id}")
+            return
+
+        connection_id = connection_result["connection_id"]
+
+        # Insert the move into the Chains table
+        insert_move_query = text("""
+            INSERT INTO Chains (connection_id, game_id, user_id, move_number)
+            VALUES (:connection_id, :game_id, :user_id, (
+                SELECT COALESCE(MAX(move_number), 0) + 1 FROM Chains WHERE game_id = :game_id
+            ))
+        """)
+        connection.execute(insert_move_query, {
+            "connection_id": connection_id,
+            "game_id": game_id,
+            "user_id": user_id
+        })
+        connection.commit()
+        
+
+        print("Move successfully recorded in Chains.")
+        
+        
+        
+        # Check if game is finished
+        game_query = text("SELECT end_point FROM Games WHERE game_id = :game_id")
+        game = connection.execute(game_query, {"game_id": game_id}).mappings().fetchone()
+        if move_type == "actor" and current_move_id == game["end_point"]:
+            print("Game over! End point reached.")
+            
+            # Update the Games table to mark the game as finished
+            update_game_query = text("UPDATE Games SET Finished = TRUE WHERE game_id = :game_id")
+            connection.execute(update_game_query, {"game_id": game_id})
+            connection.commit()
+
+            # Notify players that the game is over
+            socketio.emit("game_over", {"game_id": game_id}, room=f"game_{game_id}")
+            return
+        
+        # Log game_id before using it in the query
+        print(f"Debug: game_id before query = {game_id}")
+
+        # Fetch game players to determine the next turn
+        players_query = text("SELECT user_id FROM Plays WHERE game_id = :game_id")
+        players = connection.execute(players_query, {"game_id": game_id}).mappings().fetchall()
+        if len(players) != 2:
+            print("Invalid number of players in the game.")
+            socketio.emit("game_error", {"message": "Game configuration error."}, room=f"game_{game_id}_player_{user_id}")
+            return
+
+        user1_id, user2_id = players[0]["user_id"], players[1]["user_id"]
+
+        # Determine the next turn
+        next_turn = user1_id if user_id == user2_id else user2_id
+
+        # Determine the next move type
+        next_move_type = "movie" if move_type == "actor" else "actor"
+
+        # Include move_type in the game_update emission
+        game_update = {
+            "game_id": game_id,
+            "move": move,
+            "last_move_id": current_move_id,
+            "next_turn": next_turn,
+            "move_type": next_move_type  # Send the toggled move type
+        }
+
+        print(f"Emitting game_update: {game_update}")
+        socketio.emit("game_update", game_update, room=f"game_{game_id}")
+
+
+
+
+
 
 
 @socketio.on("connect")
 def handle_gameplay_connect():
     user_id = request.args.get("user_id")
     game_id = request.args.get("game_id")
-    print(f"Gameplay socket: user_id={user_id}, game_id={game_id}")
-    if user_id and game_id:
-        join_room(f"game_{game_id}")
-        print(f"User {user_id} joined game {game_id}")
-    else:
-        print("Error: Missing user_id or game_id for gameplay socket.")
+    if not user_id or not game_id:
+        print("Missing user_id or game_id in gameplay socket connection.")
+        return
+        
+    print(f"Connect event received: user_id={request.args.get('user_id')}, game_id={request.args.get('game_id')}")
+
+    # Define personal and game-wide rooms
+    personal_room = f"game_{game_id}_player_{user_id}"
+    game_room = f"game_{game_id}"
+
+    # Leave and rejoin rooms to ensure no duplicates
+    leave_room(personal_room)
+    join_room(personal_room)
+    print(f"User {user_id} joined personal room: {personal_room}")
+
+    leave_room(game_room)
+    join_room(game_room)
+    print(f"User {user_id} joined game-wide room: {game_room}")
+
 
 
 
@@ -557,13 +825,32 @@ def game_info(game_id):
 
     # Check if moves exist
     has_moves = bool(chain_results)
+    
+    #extarct user id
+    user_id = request.args.get("user_id")  # Extract user_id from the query parameters
+    if not user_id:
+        return "Missing user_id", 400
+        
+     # Fetch username from the database
+    user_query = text("SELECT username FROM Users WHERE user_id = :user_id")
+    with engine.connect() as connection:
+        user_result = connection.execute(user_query, {"user_id": user_id}).mappings().fetchone()
+        
+    
+    if not user_result:
+        return "User not found", 404
+        
+    username = user_result["username"]
+
 
     # Render the template with both queries' results and the flag
     return render_template(
         "game_info.html",
         chain=chain_results,
         start_end=start_end_results,
-        has_moves=has_moves
+        has_moves=has_moves,
+        user_id=user_id,
+        username=username
     )
 
 

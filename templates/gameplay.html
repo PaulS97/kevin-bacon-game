@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gameplay</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
 </head>
 <body>
     <h1>Game ID: {{ game.game_id }}</h1>
@@ -15,36 +18,35 @@
 
     {% if next_action == "start_point" %}
         <h2>Set the Start Point</h2>
-        <form action="/set_start_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+        <form id="start_point_form" action="/set_start_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
             <input type="text" name="actor_name" placeholder="Enter actor name">
             <button type="submit">Submit</button>
         </form>
+
+        
     {% elif next_action == "end_point" %}
         <h2>Set the End Point</h2>
-        <form action="/set_end_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+        <form id="end_point_form" action="/set_end_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
             <input type="text" name="actor_name" placeholder="Enter actor name">
             <button type="submit">Submit</button>
         </form>
+
     {% elif next_action == "play_game" %}
         <h2>Game is starting!</h2>
         <p>Waiting for the other player's move...</p>
-    {% elif next_action == "waiting" %}
-        <p>Waiting for the other player...</p>
     {% endif %}
 
-
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
     <script>
         // Ensure any previous socket is closed before creating a new one
         if (window.gameplaySocket) {
-            gameplaySocket.disconnect();
+            console.log("Disconnecting existing gameplay socket.");
+            window.gameplaySocket.disconnect();
         }
 
         // Establish a new gameplay socket connection
-        const userId = "{{ request.args.get('user_id') }}"; // Ensure user_id is passed
-        const gameId = "{{ game.game_id }}"; // Passed from the game object
-        const gameplaySocket = io({
+        const userId = "{{ user_id }}";
+        const gameId = "{{ game.game_id }}";
+        window.gameplaySocket = io({
             transports: ["websocket"],
             query: {
                 user_id: userId,
@@ -53,22 +55,33 @@
         });
 
         // Handle connection confirmation
-        gameplaySocket.on("connect", () => {
+        window.gameplaySocket.on("connect", () => {
             console.log(`Connected to gameplay socket! Game ID: ${gameId}, User ID: ${userId}`);
         });
 
-        // Handle other game events
-        gameplaySocket.on("game_update", (data) => {
+        // Listen for the server signal to start the game
+        window.gameplaySocket.on("start_game", (data) => {
+            console.log("Redirecting to:", `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`);
+            console.log("Both players are ready. Starting the game after receiving start game.");
+            // Redirect to game_stage with start and end points
+            window.location.href = `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`;
+        });
+
+        // Debug game updates
+        window.gameplaySocket.on("game_update", (data) => {
             console.log("Game update received:", data);
         });
 
-        // Store the socket globally for proper teardown
-        window.gameplaySocket = gameplaySocket;
+        // Handle connection errors
+        window.gameplaySocket.on("connect_error", (err) => {
+            console.error("Socket connection error:", err);
+        });
     </script>
-
-
 </body>
 </html>
+
+
+
 
 
 

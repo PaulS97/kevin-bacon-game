@@ -49,7 +49,13 @@
                         <td>{{ game.start_point }}</td>
                         <td>{{ game.end_point }}</td>
                         <td>{{ game.status }}</td>
-                        <td><button onclick="window.location.href='{{ url_for('game_info', game_id=game.game_id) }}'">View</button></td>
+                        <td>
+                            <button
+                                onclick="window.location.href='{{ url_for('game_info', game_id=game.game_id) }}?user_id={{ user_id }}'">
+                                View
+                            </button>
+                        </td>
+
                     </tr>
                     {% endfor %}
                 </tbody>
