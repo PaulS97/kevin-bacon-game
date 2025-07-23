@@ -1,0 +1,81 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Kevin Bacon Game{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+    <header class="site-banner">
+        <div class="banner-content">
+            <div class="nav-right">
+                <a href="/user_home?user_id={{ user_id }}&username={{ username }}" class="button">Home</a>
+                <a class="button" href="https://en.wikipedia.org/wiki/Six_Degrees_of_Kevin_Bacon" target="_blank" rel="noopener noreferrer">
+                    6 Degrees of Kevin Bacon
+                </a>
+            </div>
+
+
+
+            <div class="bacon-center">
+                <img class="bacon-wreath left" src="{{ url_for('static', filename='bacon.png') }}" alt="Left bacon wreath">
+
+                <div class="bacon-outer-ring">
+                    <div class="bacon-inner-ring">
+                        <div class="bacon-photo">
+                            <img id="kevin-photo" src="{{ url_for('static', filename='kevin.jpg') }}" alt="Kevin Bacon">
+                        </div>
+                    </div>
+                </div>
+
+                <img class="bacon-wreath right" src="{{ url_for('static', filename='bacon.png') }}" alt="Right bacon wreath">
+            </div>
+
+
+
+
+        </div>
+    </header>
+
+    <main class="page-content {% block page_class %}{% endblock %}">
+        {% block scripts %}{% endblock %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const createBaconFlake = () => {
+                const flake = document.createElement("img");
+                flake.src = "{{ url_for('static', filename='bacon.png') }}";
+                flake.className = "bacon-flake";
+
+                // Randomize size, position, and animation duration
+                const size = Math.random() * 30 + 20; // 20px–50px
+                const left = Math.random() * window.innerWidth;
+                const duration = Math.random() * 5 + 5; // 5s–10s
+
+                flake.style.left = `${left}px`;
+                flake.style.width = `${size}px`;
+                flake.style.animationDuration = `${duration}s`;
+
+                document.body.appendChild(flake);
+
+                // Remove after animation
+                setTimeout(() => {
+                    flake.remove();
+                }, duration * 1000);
+            };
+
+            // Spawn flakes every few seconds
+            setInterval(() => {
+                if (Math.random() < 0.3) { // 30% chance to spawn
+                    createBaconFlake();
+                }
+            }, 1000); // Try once per second
+        });
+    </script>
+
+</body>
+</html>
+

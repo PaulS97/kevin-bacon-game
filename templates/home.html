@@ -1,48 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>6 Degrees of Kevin Bacon - Home</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin-top: 50px;
-        }
-        h1 {
-            font-size: 2em;
-            color: #333;
-        }
-        .button-container {
-            margin-top: 20px;
-        }
-        .button {
-            padding: 10px 20px;
-            margin: 10px;
-            font-size: 1em;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-            text-decoration: none;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
 
-    <h1>6 Degrees of Kevin Bacon</h1>
-    <p>Welcome to the game! Please choose an option below to get started.</p>
+{% block title %}Home{% endblock %}
 
+{% block content %}
+<div class="home-content">
+    <h1>Welcome to 6 Degrees of Kevin Bacon</h1>
+    <p style="font-size: 1.2rem; color: #555; margin-top: 15px;">
+        A game of finding connections between actors through the movies they've starred in.
+    </p>
+    
+    <p style="font-size: 1rem; color: #555; margin-top: 40px; margin-bottom: 25px;">Please choose an option below to get started.</p>
     <div class="button-container">
         <a href="{{ url_for('login') }}" class="button">Login</a>
-        <a href="{{ url_for('create_account') }}" class="button">Create Account</a>
+        <a href="{{ url_for('start_guest_game') }}" class="button">Play as Guest</a>
     </div>
+</div>
 
-</body>
-</html>
-
+    {% endblock %}

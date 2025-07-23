@@ -1,5 +1,10 @@
-venv/
-__pycache__/
-*.pyc
-.env
+.ipynb_checkpoints/
+_archive/
+*.ipynb
+*.pkl
+datasets/
+*.tsv
+
+# Ignore macOS and virtual env
 .DS_Store
+venv/

@@ -1,131 +1,674 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Stage: {{ game.game_id }}</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
-</head>
-<body>
-    <h1>Game Stage: {{ game.game_id }}</h1>
-    <p><strong>Start Point:</strong> {{ start_actor }}</p>
-    <p><strong>End Point:</strong> {{ end_actor }}</p>
+{% extends "base.html" %}
 
-    <div id="move_section">
-        <p>Waiting for your move...</p>
+{% block title %}Game Stage: {{ game.game_id }}{% endblock %}
+{% block page_class %}game-stage{% endblock %}
+
+{% block content %}
+
+
+<div class="centered-page game-stage">
+    <div id="chain-complete-message" style="height: 40px; display: flex; align-items: center; justify-content: center;">
+        <!-- Will be filled on game over -->
     </div>
 
-    <form id="move_form" style="display: none;" action="javascript:void(0);">
-        <input type="text" id="move_input" name="move" placeholder="Enter your move">
-        <button type="submit">Submit Move</button>
+    <div class="move-panels">
+        <div class="move-panel">
+            <p><strong>Starting Point:</strong>  </p>
+            <img src="{{ start_actor_picture }}" alt="Start Actor" class="move-image">
+            <p class="move-label">{{ start_actor }}</p>
+        </div>
+
+        <!-- Spacer panel -->
+        <div class="move-panel spacer"></div>
+
+        <div class="move-track">
+            <div class="move-panel transitionable" id="previous-panel" style="opacity: 0;">
+                <p><strong><span id="prev-move-label-text">Previous Move</span>:</strong></p>
+                <img src="{{ url_for('static', filename='placeholder_image.png') }}" alt="Placeholder" class="move-image">
+                <p class="move-label">Placeholder Label</p>
+            </div>
+
+            <div class="move-panel transitionable" id="current-panel">
+                <p><strong><span id="move-label-text">Your Move</span>:</strong></p>
+                <img src="{{ url_for('static', filename='placeholder_image.png') }}" alt="Placeholder" class="move-image">
+                <p id="current-move-label" class="move-label"></p>
+                <div id="instructions-popup" class="instructions-popup">
+                    <p>Pick a movie or actor that connects to the last move.</p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Spacer panel -->
+        <div class="move-panel spacer"></div>
+
+
+        <div class="move-panel" id="end-panel">
+            <p><strong>End Point:</strong> </p>
+            <img src="{{ end_actor_picture }}" alt="End Actor" class="move-image">
+            <p class="move-label">{{ end_actor }}</p>
+        </div>
+    </div>
+
+
+
+
+
+
+    <form id="move_form" class="gameplay-form" style="display: none;" action="javascript:void(0);">
+        <div class="autocomplete-row">
+            <div class="autocomplete-wrapper">
+                <input type="text" id="move_input" name="move" placeholder="Enter your move" autocomplete="off">
+                <input type="hidden" name="move_id" id="move_id">
+            </div>
+            <!-- Using Font Awesome or emoji -->
+            <button type="submit" class="submit-icon-button" aria-label="Submit move">
+                →
+            </button>
+
+        </div>
     </form>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            // Ensure move_form is properly defined
-            const moveForm = document.getElementById("move_form");
-            const moveInput = document.getElementById("move_input");
-            const moveSection = document.getElementById("move_section");
-
-            const gameStageSocket = io({
-                transports: ["websocket"],
-                query: {
-                    user_id: "{{ user_id }}",
-                    game_id: "{{ game.game_id }}"
-                },
-            });
-
-            gameStageSocket.on("connect", () => {
-                console.log(`Connected to game stage for game {{ game.game_id }} as user {{ user_id }}`);
-                gameStageSocket.emit("player_ready_for_moves", {
-                    user_id: "{{ user_id }}",
-                    game_id: "{{ game.game_id }}"
-                });
-            });
-
-            // Check if it's the player's turn
-            let playerTurn = {{ player_turn }};
-            const userId = {{ user_id }};
-            const gameId = "{{ game.game_id }}";
-            let lastMoveId = "{{ last_move_id }}"; // Initialize from the rendered template
-            let moveType = "{{ move_type }}";
-
-            if (playerTurn === userId) {
-                showMoveInput();
-            } else {
-                moveSection.innerHTML = "<p>Waiting...</p>";
-            }
-
-            gameStageSocket.on("game_update", (data) => {
-                console.log("Game update received:", data);
-                console.log(`Updated move_type: ${data.move_type}, last_move_id: ${data.last_move_id}`);
 
 
-                // Update the last move ID dynamically
-                lastMoveId = data.last_move_id;
-                moveType = data.move_type;
+    <button id="hint_button" type="button" class="button" style="margin-top: 12px; display: none;">Hint</button>
+    <div id="hint_result" class="hint-output"></div>
+    <div id="form_error" class="form-error"></div>
 
-                // Update the displayed move
-                moveSection.innerHTML = `<p>Last Move: ${data.move}</p>`;
+</div>
+{% endblock %}
 
-                // Handle turn alternation
-                if (data.next_turn === parseInt(userId)) {
-                    showMoveInput();
-                    moveInput.dataset.lastMoveId = lastMoveId; // Store the updated last move ID
-                } else {
-                    hideMoveInput();
-                    moveSection.innerHTML += "<p>Waiting...</p>";
-                }
-            });
-            
-            // Handle game over event
-            gameStageSocket.on("game_over", (data) => {
-                console.log("Game over received:", data);
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
 
-                // Redirect to the game_info route to fetch game details
-                window.location.href = `/game_info/${data.game_id}?user_id=${userId}`;
-            });
+<script>
+
+    let currentAutocompleteHandler = null;
+    let autocompleteHandlerId = 0;
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+       
+
+    const moveForm = document.getElementById("move_form");
+    const moveInput = document.getElementById("move_input");
+    const errorDiv = document.getElementById("form_error");
 
 
-            // Modify the move submission event to include the dynamic lastMoveId
-            moveForm.addEventListener("submit", (event) => {
-                event.preventDefault();
-                const moveValue = moveInput.value;
+    const gameStageSocket = io("/game_stage", {
+        transports: ["websocket"],
+        query: {
+            user_id: "{{ user_id }}",
+            game_id: "{{ game.game_id }}"
+        },
+    });
 
-                gameStageSocket.emit("make_move", {
-                    user_id: userId,
-                    game_id: gameId,
-                    move: moveValue,
-                    move_type: moveType, // Alternate on the server
-                    last_move_id: lastMoveId  // Send the updated last move ID
-                });
-
-                hideMoveInput();
-                moveSection.innerHTML = "<p>Move submitted. Waiting for opponent...</p>";
-            });
-
-            // Display the move input form
-            function showMoveInput() {
-                moveForm.style.display = "block";
-            }
-
-            function hideMoveInput() {
-                document.getElementById("move_input").value = ""; // Clear the input field
-                document.getElementById("move_form").style.display = "none";
-            }
-
-
-            // Handle game completion
-            gameStageSocket.on("game_over", (data) => {
-                moveSection.innerHTML = `<p>Game over! Winner: ${data.winner}</p>`;
-                hideMoveInput();
-            });
+    gameStageSocket.on("connect", () => {
+        gameStageSocket.emit("player_ready_for_moves", {
+            user_id: "{{ user_id }}",
+            game_id: "{{ game.game_id }}"
         });
-    </script>
-</body>
-</html>
+    });
+
+    let playerTurn = "{{ player_turn }}";
+    const userId = "{{ user_id }}";
+    const gameId = "{{ game.game_id }}";
+    let lastMoveId = "{{ last_move_id }}";
+    let moveType = "{{ move_type }}";
+    let num_players = parseInt("{{ num_players }}", 10);
+        let start_actor = "{{ start_actor }}"
+
+        console.log("start_actor:", start_actor);
+    console.log("check boolean:", num_players === 1);
+
+
+
+
+    if (playerTurn === userId) {
+        showMoveInput();
+        document.getElementById("hint_button").style.display = "inline-block";
+    }
+
+    // ✅ Set the initial move label text
+        function generateInstructionText(moveType, lastMoveText) {
+            console.log("geenrating instruciton for movetype:", moveType);
+            if (moveType === "actor") {
+                return `Enter an actor featured in "${lastMoveText}".`;
+            } else if (moveType === "movie") {
+                return `Enter a movie featuring ${lastMoveText}.`;
+            } else {
+                return "Enter your next move.";
+            }
+        }
+
+
+
+        function updateMoveLabel( userId, playerTurn, numPlayers, moveType, lastMoveText) {
+            const moveLabelText = document.getElementById("move-label-text");
+            const currentMoveLabel = document.getElementById("current-move-label");
+            const popup = document.getElementById("instructions-popup");
+
+            if (!moveLabelText || !currentMoveLabel || !popup) return;
+
+            const popupText = generateInstructionText(moveType, lastMoveText);
+
+            
+
+            //console.log("moveLabelText, currentMoveLabel, popup: ", moveLabelText, currentMoveLabel, popup);
+
+
+
+            // Set the top label and bottom label
+            if (numPlayers === 1) {
+                moveLabelText.textContent = "Next Move";
+                currentMoveLabel.innerHTML = `
+            <span id="instructions-hover" style="cursor: pointer; text-decoration: underline dotted;">
+                ℹ️ Instructions
+            </span>`;
+            } else {
+                console.log("playerTurn:", playerTurn);
+                console.log("userId:", userId);
+
+                if (playerTurn === userId) {
+                    moveLabelText.textContent = "Your Move";
+                    currentMoveLabel.innerHTML = `
+                <span id="instructions-hover" style="cursor: pointer; text-decoration: underline dotted;">
+                    ℹ️ Instructions
+                </span>`;
+                } else {
+                    moveLabelText.textContent = "Their Move";
+                    currentMoveLabel.innerHTML = `Waiting... <span class="spinner-small"></span>`;
+                }
+            }
+
+            // Attach listeners *after* setting HTML, so the span exists
+            const instructionsHover = document.getElementById("instructions-hover");
+
+           // console.log("instructionsHover: ", instructionsHover);
+
+
+            if (instructionsHover) {
+                instructionsHover.addEventListener("mouseenter", () => {
+                    console.log("Hovering");
+
+                    const previousPanel = document.getElementById("previous-panel");
+                    const moveLabel = previousPanel.querySelector(".move-label");
+
+                    const labelHeight = moveLabel.getBoundingClientRect().height;
+
+                    // Example: place popup 8px above the move label
+                    popup.style.position = "absolute";
+                    popup.style.bottom = `${labelHeight + 25}px`; // adjust as needed
+                    popup.style.left = "0px"; // or wherever you want it horizontally
+
+
+
+                  
+                    popup.innerHTML = `<p>${popupText}</p>`;
+                    popup.style.display = "block";
+                    
+
+                });
+
+                instructionsHover.addEventListener("mouseleave", () => {
+                    popup.style.display = "none";
+                });
+
+                popup.addEventListener("mouseleave", () => {
+                    popup.style.display = "none";
+                });
+            }
+        }
+
+        updateMoveLabel( userId, playerTurn, num_players, moveType, start_actor )
+
+
+
+    gameStageSocket.on("game_update", (data) => {
+        lastMoveId = data.last_move_id;
+        moveType = data.move_type;
+        player_turn = data.player_turn
+
+        
+        const moveInput = document.getElementById("move_input");
+
+
+
+        if (currentAutocompleteHandler) {
+            console.log("🧹 Removing autocomplete handler:", currentAutocompleteHandler);
+
+            moveInput.removeEventListener("input", currentAutocompleteHandler);
+            const oldBox = moveInput.parentNode.querySelector(".autocomplete-suggestions");
+            if (oldBox) oldBox.innerHTML = ""; // optional: clear suggestions
+        }
+
+        // Update moveType dynamically
+        const newMoveType = data.move_type;
+        currentAutocompleteHandler = attachAutocomplete(moveInput, newMoveType);
+
+
+        //moveSection.innerHTML = `<p>Last Move: ${data.move}</p>`;
+
+        if (data.player_turn === parseInt(userId)) {
+            showMoveInput();
+            moveInput.dataset.lastMoveId = lastMoveId;
+            document.getElementById("hint_button").style.display = "inline-block";
+        } else {
+            hideMoveInput();
+            document.getElementById("hint_button").style.display = "none";
+        }
+
+
+        const currentPanel = document.getElementById("current-panel");
+        const previousPanel = document.getElementById("previous-panel");
+
+        // Update current panel with new move
+        const currentImage = currentPanel.querySelector("img.move-image");
+        const currentLabel = currentPanel.querySelector(".move-label");
+
+        if (data.image_url) {
+            if (currentImage) {
+                currentImage.src = data.image_url;
+            }
+
+            if (currentLabel) {
+                currentLabel.textContent = data.move;
+                currentLabel.style.display = "block"; 
+            } else {
+                const label = document.createElement("p");
+                label.className = "move-label";
+                label.textContent = data.move;
+                currentPanel.appendChild(label);
+            }
+        } else {
+            if (currentImage) {
+                currentImage.src = "/static/placeholder_image.png";
+            }
+
+            if (currentLabel) {
+                currentLabel.textContent = "";
+                currentLabel.style.display = "none";
+                console.log("check title clearing :");
+
+            }
+        }
+
+        // Animate the transition
+        setTimeout(() => {
+            animateMoveShift(player_turn, userId, data.move_type, data.move);
+        }, 300);
+
+
+
+    });
+
+        function animateMoveShift(player_turn, userId, moveType, lastMoveText) {
+
+        const previous = document.getElementById("previous-panel");
+        const current = document.getElementById("current-panel");
+
+        const shift = previous.offsetLeft - current.offsetLeft;
+
+        current.style.transition = "transform 0.5s ease";
+        current.style.transform = `translateX(${shift}px)`;
+        previous.style.opacity = "0";
+
+        setTimeout(() => {
+            // Copy image source
+            const currentImg = current.querySelector("img.move-image");
+            const prevImg = previous.querySelector("img.move-image");
+            if (currentImg && prevImg) {
+                prevImg.src = currentImg.src;
+            }
+
+            // Copy move label
+            const currentLabel = current.querySelector(".move-label");
+            let prevLabel = previous.querySelector(".move-label");
+
+            if (currentLabel) {
+                if (!prevLabel) {
+                    prevLabel = document.createElement("p");
+                    prevLabel.className = "move-label";
+                    previous.appendChild(prevLabel);
+                }
+                prevLabel.textContent = currentLabel.textContent;
+            } else if (prevLabel) {
+                prevLabel.textContent = "";
+            }
+
+            const currentTopLabel = document.getElementById("move-label-text");
+            const prevTopLabel = document.getElementById("prev-move-label-text");
+
+            if (currentTopLabel && prevTopLabel && num_players > 1) {
+                prevTopLabel.textContent = currentTopLabel.textContent;
+            }
+
+
+         
+
+            // Clear current panel image and label
+            if (currentImg) {
+                currentImg.src = "/static/placeholder_image.png";
+            }
+
+            /*if (currentLabel) {
+                currentLabel.textContent = "";
+                if (num_players > 1 && player_turn !== parseInt(userId)) {
+                    currentLabel.innerHTML = `Waiting... <span class="spinner-small"></span>`;
+                }
+            }
+
+
+
+            if (currentTopLabel && num_players>1) {
+                if (player_turn === parseInt(userId)) {
+                    currentTopLabel.textContent = "Your Move";
+                } else {
+                    currentTopLabel.textContent = "Their Move";
+                }
+            }*/
+
+            updateMoveLabel(parseInt(userId), player_turn, num_players, moveType, lastMoveText);
+
+
+            // Reset transition
+            current.style.transition = "none";
+            current.style.transform = "none";
+            previous.style.opacity = "1";
+
+        }, 500);
+
+        
+    }
 
 
 
 
 
+
+    gameStageSocket.on("game_error", (data) => {
+        errorDiv.textContent = data.message;
+        showMoveInput();
+    });
+
+    gameStageSocket.on("game_over", (data) => {
+        console.log("Game over received:", data);
+
+        const chainMessage = document.getElementById("chain-complete-message");
+        if (chainMessage) {
+            chainMessage.textContent = "Chain Completed!";
+            chainMessage.style.color = "var(--primary)";
+            chainMessage.style.fontSize = "2em";
+            chainMessage.style.fontWeight = "bold";
+        }
+       
+
+        const endActorName = "{{ end_actor }}";
+        const endActorPicture = "{{ end_actor_picture }}";
+
+        const currentPanel = document.getElementById("current-panel");
+
+        if (currentPanel) {
+            const currentImage = currentPanel.querySelector("img");
+            const currentLabel = currentPanel.querySelector(".move-label");
+
+            if (currentImage) currentImage.src = endActorPicture;
+            if (currentLabel) {
+                currentLabel.textContent = endActorName;
+                currentLabel.style.display = "block";
+            }
+        }
+
+
+
+        document.getElementById("current-panel")?.classList.add("glow-green");
+        document.getElementById("end-panel")?.classList.add("glow-green");
+
+        const baconImg = document.getElementById("kevin-photo");
+        if (baconImg) {
+            baconImg.src = "https://media1.tenor.com/m/Z11224Gy-nYAAAAd/footloose-bacon.gif";
+            baconImg.alt = "Kevin Bacon Dancing";
+            baconImg.style.filter = "none";
+            baconImg.style.mixBlendMode = "normal";
+        }
+
+        
+
+
+        const container = document.querySelector(".centered-page.game-stage");
+
+   
+
+
+        // Redirect after a few seconds
+        setTimeout(() => {
+            window.location.href = `/game_info/${data.game_id}?user_id=${userId}`;
+        }, 6000);
+    });
+
+
+
+    moveForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        let moveValue = moveInput.value.trim();
+
+        // Remove trailing " (YYYY)" if present
+        moveValue = moveValue.replace(/\s\(\d{4}\)$/, "");
+
+        const moveId = document.getElementById("move_id").value;
+
+        if (!moveId) {
+            errorDiv.textContent = "Please select a valid move from the dropdown.";
+            return;
+        }
+
+        gameStageSocket.emit("make_move", {
+            user_id: userId,
+            game_id: gameId,
+            move: moveValue,
+            move_id: moveId,
+            move_type: moveType,
+            last_move_id: lastMoveId
+        });
+
+
+    });
+
+    function showMoveInput() {
+        moveForm.style.display = "flex";
+    }
+
+    function hideMoveInput() {
+        document.getElementById("move_input").value = "";
+        document.getElementById("move_form").style.display = "none";
+        document.getElementById("hint_result").innerHTML = "";
+        errorDiv.textContent = "";
+    }
+
+    document.getElementById("hint_button").addEventListener("click", () => {
+        gameStageSocket.emit("request_hint", {
+            user_id: userId,
+            game_id: gameId,
+            last_move_id: lastMoveId,
+            move_type: moveType
+        });
+    });
+
+    gameStageSocket.on("hint_response", (data) => {
+        const hintDiv = document.getElementById("hint_result");
+
+        if (data.error) {
+            hintDiv.innerHTML = `<p style="color:red;">${data.error}</p>`;
+        } else {
+            if (errorDiv) errorDiv.textContent = "";
+            hintDiv.innerHTML = `
+            <div class="move-panel">
+                <p><strong>Try this:</strong></p>
+                <img src="${data.picture}" alt="Hint Image" class="move-image">
+                <p class="move-label">${data.name}</p>
+            </div>
+        `;
+            document.getElementById("move_input").value = data.name;
+            document.getElementById("move_id").value = data.id;
+
+        }
+    });
+
+
+
+   
+});
+
+
+
+    function attachAutocomplete(inputEl, type) {
+        // ✅ Check if a suggestion box already exists
+
+        const handlerId = ++autocompleteHandlerId;
+
+        let box = inputEl.parentNode.querySelector(".autocomplete-suggestions");
+        if (!box) {
+            box = document.createElement("div");
+            box.classList.add("autocomplete-suggestions");
+            inputEl.parentNode.appendChild(box);
+        }
+
+        console.log(`📦 Suggestion box has ${box.children.length} child(ren)`);
+
+
+        let suggestions = [];
+        let selectedIndex = -1;
+
+        const handler = function () {
+            console.log(`⌨️ Handler #${handlerId} triggered. Type: ${type}, Input: "${inputEl.value}"`);
+
+            const q = inputEl.value;
+            document.getElementById("move_id").value = "";
+            if (q.length < 2) {
+                box.innerHTML = "";
+                return;
+            }
+
+            fetch(`/autocomplete?q=${encodeURIComponent(q)}&type=${type}`)
+                .then(res => res.json())
+                .then(data => {
+                    suggestions = data;
+                    selectedIndex = -1;
+                    box.innerHTML = "";
+                    data.forEach((s, i) => {
+                        const div = document.createElement("div");
+                        div.innerHTML = `<img src="${s.picture}" alt=""> ${s.name}`;
+                        div.addEventListener("click", () => {
+                            inputEl.value = s.name;
+                            document.getElementById("move_id").value = s.id;
+                            box.innerHTML = "";
+                            inputEl.focus();
+                            inputEl.closest("form").requestSubmit();
+                        });
+                        box.appendChild(div);
+                    });
+                });
+        };
+
+
+
+        inputEl.addEventListener("keydown", (e) => {
+            const items = box.querySelectorAll("div");
+            if (e.key === "ArrowDown" && selectedIndex < items.length - 1) {
+                selectedIndex++;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === "ArrowUp" && selectedIndex > 0) {
+                selectedIndex--;
+                updateSelection(items);
+                e.preventDefault();
+            } else if (e.key === "Enter") {
+                if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+                    inputEl.value = suggestions[selectedIndex].name;
+                    document.getElementById("move_id").value = suggestions[selectedIndex].id;
+                    selectedIndex = -1;
+                    inputEl.focus();  // 👈 ensure input keeps focus so a second Enter works
+                    //e.preventDefault();  // prevent form submit on first enter
+                }
+            }
+        });
+
+        function updateSelection(items) {
+            items.forEach((item, i) => {
+                item.style.backgroundColor = i === selectedIndex ? "#ddd" : "";
+            });
+        }
+
+      
+
+        inputEl.addEventListener("input", handler);
+        console.log(`🆕 Created autocomplete handler #${handlerId} for type: ${type}`);
+
+        return handler; // 👈 return it so we can remove it later
+    }
+       
+
+document.addEventListener("DOMContentLoaded", () => {
+    const moveInput = document.querySelector('form#move_form input[name="move"]');
+    const moveIdInput = document.querySelector('form#move_form input[name="move_id"]');
+    const errorDiv = document.getElementById("form_error");
+    let moveType = "{{ move_type }}";
+
+    if (moveInput) {
+        currentAutocompleteHandler = attachAutocomplete(moveInput, moveType); // ✅ store the handler
+    }
+
+    const moveForm = document.getElementById("move_form");
+    if (moveForm) {
+        moveForm.addEventListener("submit", (e) => {
+            const moveId = moveIdInput?.value;
+            const suggestionBox = document.querySelector('form#move_form .autocomplete-suggestions');
+            const boxExists = !!suggestionBox;
+            const boxVisible = suggestionBox && suggestionBox.offsetParent !== null;
+            const boxHasChildren = suggestionBox && suggestionBox.children.length > 0;
+
+            console.log("=== Game Stage Form Validation Debug ===");
+            console.log("moveId:", moveId);
+            console.log("suggestionBox exists:", boxExists);
+            console.log("suggestionBox visible:", boxVisible);
+            console.log("suggestionBox has children:", boxHasChildren);
+
+            const suggestionsVisible = boxExists && boxVisible && boxHasChildren;
+
+            if (!moveId) {
+                e.preventDefault();
+
+                if (suggestionBox) {
+                    suggestionBox.innerHTML = ""; // hide dropdown when showing error
+                }
+
+                if (errorDiv) {
+                    if (suggestionsVisible) {
+                        console.log("🔴 Error: Please select an actor or movie from the dropdown.");
+                        errorDiv.textContent = "Please select an option from the dropdown.";
+                    } else {
+                        console.log("🔴 Error: No matching actor/movie found.");
+                        errorDiv.textContent = "No matching option found.";
+                    }
+                }
+            } else {
+                console.log("✅ Valid selection — clearing error.");
+                document.getElementById("move_input").value = "";
+                document.getElementById("move_id").value = "";
+                document.getElementById("hint_result").innerHTML = "";
+
+
+                if (errorDiv) {
+                    errorDiv.textContent = "";
+                }
+                if (suggestionBox) {
+                    suggestionBox.innerHTML = "";
+                }
+            }
+        });
+    }
+});
+</script>
+
+
+{% endblock %}

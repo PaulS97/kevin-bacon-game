@@ -1,36 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Home</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { display: flex; }
-        .column { width: 50%; padding: 20px; }
-        h2 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        button { padding: 5px 10px; color: #fff; background-color: #007BFF; border: none; cursor: pointer; border-radius: 4px; }
-        button:hover { background-color: #0056b3; }
-    </style>
-</head>
-<body>
-    <p>User: {{ username }}</p>
-    <p>User ID: {{ user_id }}</p>
-    <p>Message: {{ message }}</p>
-    <p>Message Lobby ID: {{ message_lobby_id }}</p>
+{% extends "base.html" %}
 
+{% block title %}User Home{% endblock %}
 
+{% block content %}
+<div class="user-dashboard">
+    <h2>Welcome to Your Dashboard</h2>
 
-    <h1>Welcome to Your Dashboard</h1>
-    
-    <div class="container">
-        <!-- View Previous Games Column -->
-        <div class="column">
-            <h2>View a Previous Game</h2>
-            <table>
+    <div class="button-container" style="margin: 20px 0;">
+        <a href="/mode_select?user_id={{ user_id }}&username={{ username }}" class="button">Play Game</a>
+    </div>
+
+    <div class="dashboard-columns">
+        <div class="dashboard-column">
+            <h3>View a Previous Game</h3>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Player 1</th>
@@ -50,41 +33,9 @@
                         <td>{{ game.end_point }}</td>
                         <td>{{ game.status }}</td>
                         <td>
-                            <button
-                                onclick="window.location.href='{{ url_for('game_info', game_id=game.game_id) }}?user_id={{ user_id }}'">
+                            <button onclick="window.location.href='{{ url_for('game_info', game_id=game.game_id) }}?user_id={{ user_id }}'" class="button">
                                 View
                             </button>
-                        </td>
-
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Join a Lobby Column -->
-        <div class="column">
-            <h2>Join a Lobby</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Min Experience Level</th>
-                        <th>Time Limit (min)</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for lobby in available_lobbies %}
-                    <tr>
-                        <td>{{ lobby.min_experience_level }}</td>
-                        <td>{{ lobby.time_limit_minutes }}</td>
-                        <td>
-                            <button onclick="initializeSocket({{ lobby.lobby_id }}, {{ user_id }})">
-                                Join
-                            </button>
-                            {% if message and message_lobby_id|int == lobby.lobby_id %}
-                                <span style="color: red; margin-left: 10px;">{{ message }}</span>
-                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -92,75 +43,5 @@
             </table>
         </div>
     </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
-    <script>
-        let socket; // Declare globally
-
-        function initializeSocket(lobbyId, userId) {
-            if (!socket) {
-                socket = io({
-                    transports: ['websocket'],
-                    query: { user_id: userId },
-                    reconnection: false, // No automatic reconnection
-                });
-            }
-
-            console.log("Socket:", socket); // Debugging
-            console.log("Emitting join_lobby", { lobby_id: lobbyId, user_id: userId });
-
-            // Ensure socket exists before emitting
-            if (socket) {
-                socket.emit("join_lobby", { lobby_id: lobbyId, user_id: userId });
-            } else {
-                console.error("Socket is not initialized!");
-            }
-            
-            // Log connection and disconnection events
-            socket.on("connect", () => {
-                console.log("Socket connected");
-            });
-
-            socket.on("disconnect", () => {
-                console.log("Socket disconnected");
-            });
-
-            socket.on('connect_error', (err) => {
-                console.error("Connection error:", err.message);
-            });
-            
-            socket.on("server_shutdown", (data) => {
-                console.warn(data.message);
-                socket.disconnect();
-            });
-            
-            // Disconnect the socket when the page is unloaded
-            window.addEventListener("beforeunload", () => {
-                socket.disconnect();
-            });
-            
-            
-            // Listen for the start_game event
-            // Handle the start_game event from the server
-            socket.on("start_game", (data) => {
-                console.log("Game started!", data);
-
-                // Disconnect from the lobby socket
-                socket.emit("leave_lobby", {}, () => {
-                    console.log("Left lobby. Disconnecting...");
-                    socket.disconnect();
-
-                    // Redirect to gameplay, where a new socket will be created
-                    window.location.href = `/gameplay/${data.game_id}?user_id=${userId}`;
-                });
-            });
-
-            
-            
-        }
-    </script>
-
-
-</body>
-</html>
-
+</div>
+{% endblock %}

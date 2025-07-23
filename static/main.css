@@ -1,0 +1,617 @@
+:root {
+    --primary: #FF9F1C;
+    --primary-hover: #FFBF69;
+    --muted: #CB997E;
+    --background: #FFE8D6;
+    --text-dark: #3A3A3A;
+    --text-light: #ffffff;
+    --peach: #FFE8D6;
+    --sunset: #FF9F1C;
+}
+
+body {
+    background-color: var(--background);
+    color: var(--text-dark);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+
+
+.button {
+    background-color: var(--primary);
+    color: var(--text-light);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+    .button:hover {
+        background-color: var(--primary-hover);
+    }
+
+.page-content {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+    margin-top: 80px;
+}
+
+    .page-content.game-stage {
+        max-width: 1000px;
+        width: 100%;
+    }
+
+
+.site-banner {
+    background-color: var(--primary);
+    color: var(--text-light);
+    padding: 0px 20px;
+    height: 50px;
+    position: relative;
+}
+
+
+
+.banner-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative; /* Needed for absolute centering */
+    flex-wrap: wrap;
+    gap: 20px;
+    height: 50px;
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    height: 100%;
+}
+
+
+
+
+
+.title-left h1 {
+    font-size: 26px;
+    margin: 0;
+}
+
+
+.actor-chain {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    gap: 8px;
+}
+
+.arrow {
+    font-size: 48px;
+    color: white;
+    text-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+.bacon-center {
+    transform: translateX(-50%);
+    position: absolute;
+    left: 50%;
+    display: flex;
+    justify-content: center;
+    z-index: 2;
+    overflow: visible;
+    padding: 55px 20px 0 20px; /* Top 110px padding, side 20px, bottom 0 */
+}
+
+
+.bacon-outer-ring {
+    display: flex; /* ?? Use flex to center child */
+    justify-content: center;
+    align-items: center;
+    width: fit-content; /* Let it size based on padding + content */
+    height: fit-content;
+    background-color: var(--sunset);
+    border-radius: 50%;
+    padding: 10px;
+    position: relative;
+    z-index: 4;
+}
+
+.bacon-inner-ring {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--peach);
+    border-radius: 50%;
+    padding: 10px;
+    width: fit-content;
+    height: fit-content;
+}
+
+
+
+.bacon-photo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: var(--peach);
+}
+
+    .bacon-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: grayscale(100%) contrast(1.1) brightness(1.1);
+        mix-blend-mode: multiply;
+    }
+
+.bacon-wreath {
+    position: absolute;
+    height: 100px; /* adjust based on image size */
+    top: 80%;
+    transform: translateY(-50%);
+    z-index: 1; /* below Kevin Bacon */
+    opacity: 0.9;
+    z-index: 3;
+}
+
+    .bacon-wreath.left {
+        left: -30px; /* adjust distance from center */
+        transform: translateY(-50%) scaleX(-1) rotate(-15deg); /* angle optional */
+    }
+
+    .bacon-wreath.right {
+        right: -30px;
+        transform: translateY(-50%)  rotate(-15deg); /* mirror and angle */
+    }
+
+.bacon-flake {
+    position: fixed;
+    top: -60px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.9;
+    animation-name: bacon-fall;
+    animation-timing-function: linear;
+}
+
+@keyframes bacon-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+.home-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 10vh; /* fill most of the screen vertically */
+    padding: 20px 20px;
+}
+
+
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    width: 100%;
+    max-width: 250px;
+}
+
+    .form-field label {
+        font-size: 14px;
+        color: #666; /* soft gray */
+        margin-bottom: 6px;
+    }
+
+    .form-field input {
+        padding: 8px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+
+.user-dashboard {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 20px;
+    text-align: center;
+}
+
+.dashboard-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.dashboard-column {
+    flex: 1;
+    min-width: 300px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+    .data-table th, .data-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+        max-width: 200px;
+        word-wrap: break-word;
+    }
+
+    .data-table th {
+        background-color: #f9f9f9;
+        color: #333;
+    }
+
+    .data-table td:last-child {
+        text-align: center;
+    }
+
+    .data-table button {
+        padding: 6px 12px;
+        font-size: 14px;
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        .data-table button:hover {
+            background-color: var(--primary-hover);
+        }
+
+.centered-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: 80px auto;
+    max-width: 500px;
+    padding: 20px;
+}
+
+    .centered-page.game-stage {
+        max-width: 1000px; /* upper limit on large screens */
+        width: 100%; /* allows it to shrink */
+        padding: 0 0px; /* keeps some spacing on small screens */
+        margin: 0 auto;
+    }
+
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.spinner-small {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 6px; /* space between text and spinner */
+}
+
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+
+
+.gameplay-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+.autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 250px;
+    flex: 1;
+}
+
+.autocomplete-row {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 350px; /* or whatever size feels right */
+}
+
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%; /* dropdown appears directly below the input */
+    left: 0;
+    width: 100%;
+    background: white;
+    border: none;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    text-align: left;
+}
+
+
+    .autocomplete-suggestions div {
+        display: flex;
+        align-items: center;
+        padding: 5px;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .autocomplete-suggestions img {
+        height: 40px;
+        width: 30px;
+        margin-right: 10px;
+        object-fit: cover;
+        flex-shrink: 0;
+    }
+
+    .autocomplete-suggestions div:hover {
+        background-color: #f0f0f0;
+    }
+
+.gameplay-form .button {
+    margin-top: 12px;
+}
+
+.form-error {
+    color: red;
+    font-size: 14px;
+    margin-top: 8px;
+    text-align: center;
+}
+
+.move-panels {
+    display: flex;
+    width: 100%;
+    justify-content: space-around;
+    margin-top: 15px;
+    margin-bottom: 30px;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.move-panel {
+    text-align: center;
+    width: 180px;
+    padding: 12px;
+    background: #f7f7f7;
+    border-radius: 12px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: visible;
+    transition: transform 0.5s ease;
+}
+
+.move-image {
+    width: 100px;
+    height: 150px;
+    object-fit: cover;
+    margin: 8px 0;
+    border-radius: 4px;
+}
+
+
+
+
+.move-panel.spacer {
+    width: 12px;
+    background: none;
+    box-shadow: none;
+    border: none;
+    pointer-events: none;
+}
+
+.move-track {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    overflow: hidden;
+    min-height: 200px;
+    gap: 0 10px;
+    overflow: visible; /* ? this is the key */
+}
+
+.move-panel.transitionable {
+    transition: transform 0.5s ease;
+}
+
+
+
+    .move-panel.previous {
+        left: 0;
+    }
+
+    .move-panel.current {
+        left: 100%;
+    }
+
+    .move-panel.slide-left {
+        transform: translateX(-100%);
+    }
+
+#last-move-slot img.move-image {
+    display: block;
+    margin: 0 auto;
+}
+
+.move-label {
+    margin: 16px 0 0;
+    font-size: 1rem;
+    font-weight: normal; /* ?? this removes the bold style */
+    color: #333;
+    text-align: center;
+}
+
+.submit-icon-button,
+.submit-text-button {
+    background: var(--primary);
+    border: none;
+    color: white;
+    font-size: 18px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.submit-icon-button {
+    width: 40px;
+    height: 35px;
+    font-size: 20px;
+    padding: 0;
+}
+
+
+
+#hint_result {
+    margin-top: 16px;
+}
+
+.hints-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 40px;
+}
+
+    .hints-list li {
+        background: #fff;
+        border-radius: 8px;
+        padding: 10px 20px;
+        margin: 8px auto;
+        max-width: 400px;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+        font-size: 16px;
+    }
+
+.chain-item {
+    margin: 5px 0;
+}
+
+.ellipsis {
+    font-size: 28px;
+    color: var(--muted);
+    margin: 10px 0;
+}
+
+.return-button {
+    margin: 30px 10px 10px;
+}
+
+.hints-column {
+    flex: 1;
+    min-width: 260px;
+    max-width: 400px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.glow-green {
+    animation: greenGlow 1s ease-in-out infinite alternate;
+}
+
+@keyframes greenGlow {
+    from {
+        box-shadow: 0 0 10px 2px rgba(255, 159, 28, 0.5);
+    }
+
+    to {
+        box-shadow: 0 0 20px 6px rgba(255, 159, 28, 0.8);
+    }
+}
+
+.instructions-popup {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+    max-width: 250px;
+    bottom: 40px; /* as you?ve set it */
+    left: 0px;
+}
+
+    /* outer (border-colored) triangle */
+    .instructions-popup::before {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid #ccc; /* border color */
+        z-index: 0;
+    }
+
+    /* inner (background-colored) triangle */
+    .instructions-popup::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(-1px); /* slightly up to overlay border */
+        border-left: 7px solid transparent;
+        border-right: 7px solid transparent;
+        border-top: 7px solid white; /* popup background */
+        z-index: 1;
+    }
+

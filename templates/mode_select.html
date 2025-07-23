@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Select Game Mode{% endblock %}
+
+{% block content %}
+<div class="centered-page">
+    <h2>Choose Game Mode</h2>
+
+    <div class="button-container" style="margin-top: 30px;">
+        <button class="button" onclick="window.location.href='/start_solo_game?user_id={{ user_id }}'">
+            Solo Mode
+        </button>
+        <button class="button" onclick="startTwoPlayerMode({{ user_id }})">
+            2 Player Mode
+        </button>
+    </div>
+
+    <div id="waiting_message" style="margin-top: 30px; display: none; align-items: center; justify-content: center;">
+        <span style="margin-right: 12px;">Waiting for another player... </span>
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+<script>function startTwoPlayerMode(userId) {
+        const lobbyId = 1; // shared lobby
+
+        const socket = io({
+            transports: ['websocket'],
+            query: { user_id: userId },
+            reconnection: false,
+        });
+
+        socket.emit("join_lobby", { lobby_id: lobbyId, user_id: userId });
+
+        socket.on("start_game", (data) => {
+            document.getElementById("waiting_message").style.display = "none";
+            socket.emit("leave_lobby", {}, () => {
+                socket.disconnect();
+                window.location.href = `/gameplay/${data.game_id}?user_id=${userId}`;
+            });
+        });
+
+        socket.on("waiting", (data) => {
+            document.getElementById("waiting_message").style.display = "flex";
+        });
+
+        socket.on("connect_error", (err) => {
+            console.error("Connection error:", err.message);
+        });
+
+        window.addEventListener("beforeunload", () => {
+            socket.disconnect();
+        });
+    }</script>
+{% endblock %}

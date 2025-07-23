@@ -1,33 +1,36 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        .error { color: red; }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
 
-    <h1>Login</h1>
+{% block title %}Home{% endblock %}
 
-    {% if error %}
-        <p class="error">{{ error }}</p>
-    {% endif %}
+{% block content %}
+<div class="centered-page">
+    <h2>Login</h2>
 
-    <form action="{{ url_for('check_login') }}" method="POST">
-        <div>
+
+    <form action="{{ url_for('check_login') }}" method="POST" class="login-form">
+        <div class="form-field">
             <label for="username">Username:</label>
             <input type="text" id="username" name="username" required>
         </div>
-        <div>
+
+        <div class="form-field">
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required>
         </div>
-        <button type="submit">Login</button>
+
+
+        {% if error %}
+        <p class="form-error">{{ error }}</p>
+        {% endif %}
+
+        <button type="submit" class="button" style="margin-top: 20px;">Login</button>
     </form>
 
-</body>
-</html>
+
+    <p style="margin-top: 20px; color: #666;">Don’t have an account?</p>
+
+    <form action="{{ url_for('create_account_form') }}" method="GET">
+        <button type="submit" class="button">Create Account</button>
+    </form>
+</div>
+{% endblock %}

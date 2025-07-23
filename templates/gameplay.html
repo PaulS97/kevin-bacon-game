@@ -1,87 +1,235 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gameplay</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
-</head>
-<body>
-    <h1>Game ID: {{ game.game_id }}</h1>
+{% extends "base.html" %}
 
-    {% if start_point %}
-        <p>Start Point: {{ start_point }}</p>
-    {% endif %}
-    {% if end_point %}
-        <p>End Point: {{ end_point }}</p>
-    {% endif %}
+{% block title %}Gameplay{% endblock %}
+
+{% block content %}
+<div class="centered-page">
 
     {% if next_action == "start_point" %}
-        <h2>Set the Start Point</h2>
-        <form id="start_point_form" action="/set_start_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
-            <input type="text" name="actor_name" placeholder="Enter actor name">
-            <button type="submit">Submit</button>
-        </form>
+    <h2>Set the Start Point</h2>
+    <form id="start_point_form" class="gameplay-form" action="/set_start_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+        <div class="autocomplete-row">
+            <div class="autocomplete-wrapper">
+                <input type="text" name="actor_name" placeholder="Enter actor name" autocomplete="off">
+                <input type="hidden" name="move_id" id="move_id">
+            </div>
+            <button type="submit" class="submit-icon-button" aria-label="Submit start point">→</button>
+        </div>
+    </form>
+    <div id="form_error" class="form-error"></div>
+    <script>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                const flashMessage = {{ messages[0]|tojson }};
+                const errorDiv = document.getElementById("form_error");
+                if (errorDiv) {
+                    errorDiv.textContent = flashMessage;
+                }
+            {% endif %}
+        {% endwith %}
+    </script>
 
-        
     {% elif next_action == "end_point" %}
-        <h2>Set the End Point</h2>
-        <form id="end_point_form" action="/set_end_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
-            <input type="text" name="actor_name" placeholder="Enter actor name">
-            <button type="submit">Submit</button>
-        </form>
+    <h2>Set the End Point</h2>
+    <form id="end_point_form" class="gameplay-form" action="/set_end_point/{{ game.game_id }}?user_id={{ user_id }}" method="POST">
+        <div class="autocomplete-row">
+            <div class="autocomplete-wrapper">
+                <input type="text" name="actor_name" placeholder="Enter actor name" autocomplete="off">
+                <input type="hidden" name="move_id" id="move_id">
+            </div>
+            <button type="submit" class="submit-icon-button" aria-label="Submit end point">→</button>
+        </div>
+    </form>
+    <div id="form_error" class="form-error"></div>
+    <script>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                const flashMessage = {{ messages[0]|tojson }};
+                const errorDiv = document.getElementById("form_error");
+                if (errorDiv) {
+                    errorDiv.textContent = flashMessage;
+                }
+            {% endif %}
+        {% endwith %}
+    </script>
+
 
     {% elif next_action == "play_game" %}
-        <h2>Game is starting!</h2>
-        <p>Waiting for the other player's move...</p>
+    <h2>Game is starting!</h2>
+    <p>
+        Waiting for the other player's move...
+        <span class="spinner-small" style="margin-left: 8px;"></span>
+    </p>
     {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
 
     <script>
-        // Ensure any previous socket is closed before creating a new one
-        if (window.gameplaySocket) {
-            console.log("Disconnecting existing gameplay socket.");
-            window.gameplaySocket.disconnect();
-        }
+if (window.gameplaySocket) {
+    console.log("Disconnecting existing gameplay socket.");
+    window.gameplaySocket.disconnect();
+}
 
-        // Establish a new gameplay socket connection
-        const userId = "{{ user_id }}";
-        const gameId = "{{ game.game_id }}";
-        window.gameplaySocket = io({
-            transports: ["websocket"],
-            query: {
-                user_id: userId,
-                game_id: gameId,
-            },
-        });
+const userId = "{{ user_id }}";
+const gameId = "{{ game.game_id }}";
 
-        // Handle connection confirmation
-        window.gameplaySocket.on("connect", () => {
-            console.log(`Connected to gameplay socket! Game ID: ${gameId}, User ID: ${userId}`);
-        });
+window.gameplaySocket = io("/gameplay", {
+    transports: ["websocket"],
+    query: { user_id: userId, game_id: gameId },
+});
 
-        // Listen for the server signal to start the game
-        window.gameplaySocket.on("start_game", (data) => {
-            console.log("Redirecting to:", `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`);
-            console.log("Both players are ready. Starting the game after receiving start game.");
-            // Redirect to game_stage with start and end points
-            window.location.href = `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`;
-        });
+window.gameplaySocket.on("connect", () => {
+    console.log(`Connected to gameplay socket! Game ID: ${gameId}, User ID: ${userId}`);
+});
 
-        // Debug game updates
-        window.gameplaySocket.on("game_update", (data) => {
-            console.log("Game update received:", data);
-        });
+window.gameplaySocket.on("start_game", (data) => {
+    console.log("Redirecting to:", `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`);
+    window.location.href = `/game_stage/${data.game_id}?user_id=${data.user_id}&start_point=${data.start_point}&end_point=${data.end_point}`;
+});
 
-        // Handle connection errors
-        window.gameplaySocket.on("connect_error", (err) => {
-            console.error("Socket connection error:", err);
-        });
+window.gameplaySocket.on("game_update", (data) => {
+    console.log("Game update received:", data);
+});
+
+window.gameplaySocket.on("connect_error", (err) => {
+    console.error("Socket connection error:", err);
+});
     </script>
-</body>
-</html>
+
+    <script>function attachAutocomplete(inputEl, type) {
+                const box = document.createElement("div");
+                box.classList.add("autocomplete-suggestions");
+                inputEl.parentNode.appendChild(box);
+
+                let suggestions = [];
+                let selectedIndex = -1;
+
+                inputEl.addEventListener("input", () => {
+                    const q = inputEl.value;
+                    document.getElementById("move_id").value = "";
+                    if (q.length < 2) {
+                    box.innerHTML = "";
+                        return;
+                    }
+
+                    fetch(`/autocomplete?q=${encodeURIComponent(q)}&type=${type}`)
+                        .then(res => res.json())
+                        .then(data => {
+                    suggestions = data;
+                            selectedIndex = -1;
+                            box.innerHTML = "";
+                            data.forEach((s, i) => {
+                                const div = document.createElement("div");
+                                div.innerHTML = `<img src="${s.picture}" alt=""> ${s.name}`;
+                                div.addEventListener("click", () => {
+                                    inputEl.value = s.name;
+                                    document.getElementById("move_id").value = s.id;
+                                    box.innerHTML = "";
+                                    inputEl.focus();  // 👈 again, keep cursor in box after click
+                                    inputEl.closest("form").requestSubmit();
+
+                                });
+                                box.appendChild(div);
+                            });
+                        });
+                });
+
+                inputEl.addEventListener("keydown", (e) => {
+                    const items = box.querySelectorAll("div");
+                    if (e.key === "ArrowDown" && selectedIndex < items.length - 1) {
+                        selectedIndex++;
+                        updateSelection(items);
+                        e.preventDefault();
+                    } else if (e.key === "ArrowUp" && selectedIndex > 0) {
+                        selectedIndex--;
+                        updateSelection(items);
+                        e.preventDefault();
+                    } else if (e.key === "Enter") {
+                        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+                            inputEl.value = suggestions[selectedIndex].name;
+                            document.getElementById("move_id").value = suggestions[selectedIndex].id;
+                            //box.innerHTML = "";
+                            selectedIndex = -1;
+                            inputEl.focus();  // 👈 ensure input keeps focus so a second Enter works
+                            //e.preventDefault();  // prevent form submit on first enter
+                        }
+                    }
+                });
+
+                function updateSelection(items) {
+                        items.forEach((item, i) => {
+                            item.style.backgroundColor = i === selectedIndex ? "#ddd" : "";
+                        });
+                }
+
+                document.addEventListener("click", (e) => {
+                    if (!box.contains(e.target) && e.target !== inputEl) {
+                        // box.innerHTML = "";
+                    }
+                });
+            }</script>
+
+    <script>document.addEventListener("DOMContentLoaded", () => {
+                const startInput = document.querySelector('form#start_point_form input[name="actor_name"]');
+                const endInput = document.querySelector('form#end_point_form input[name="actor_name"]');
+
+                if (startInput) attachAutocomplete(startInput, "actor");
+                if (endInput) attachAutocomplete(endInput, "actor");
+
+                // ✅ Add this block inside the same DOMContentLoaded handler:
+                ["start_point_form", "end_point_form"].forEach(formId => {
+                    const form = document.getElementById(formId);
+                    if (!form) return;
+
+                    form.addEventListener("submit", (e) => {
+                        const input = form.querySelector('input[name="actor_name"]');
+                        const moveId = form.querySelector('input[name="move_id"]')?.value;
+                        const suggestionBox = form.querySelector(".autocomplete-suggestions");
+                        const errorDiv = form.nextElementSibling?.classList.contains("form-error")
+                            ? form.nextElementSibling
+                            : null;
+
+                        const boxExists = !!suggestionBox;
+                        const boxVisible = suggestionBox && suggestionBox.offsetParent !== null;
+                        const boxHasChildren = suggestionBox && suggestionBox.children.length > 0;
+
+                        console.log("=== Form Validation Debug ===");
+                        console.log("Form ID:", formId);
+                        console.log("moveId:", moveId);
+                        console.log("suggestionBox exists:", boxExists);
+                        console.log("suggestionBox visible:", boxVisible);
+                        console.log("suggestionBox has children:", boxHasChildren);
+
+                        const suggestionsVisible = boxExists && boxVisible && boxHasChildren;
+
+                        if (!moveId) {
+                        e.preventDefault();
 
 
+                            const box = form.querySelector(".autocomplete-suggestions");
+                            if (box) {
+                        box.innerHTML = ""; // ✅ hide dropdown when showing error
+                            }
 
+                            if (errorDiv) {
+                                if (suggestionsVisible) {
+                        console.log("🔴 Error: Please select an actor from the dropdown.");
+                                    errorDiv.textContent = "Please select an actor from the dropdown.";
+                                } else {
+                        console.log("🔴 Error: No matching actor found.");
+                                    errorDiv.textContent = "No matching actor found.";
+                                }
+                            }
+                        } else if (errorDiv) {
+                        console.log("✅ Valid selection — clearing error.");
+                            errorDiv.textContent = "";
+                        }
+                    });
+                });
 
+            });</script>
 
-
+    {% endblock %}

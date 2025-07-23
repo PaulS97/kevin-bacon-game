@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+<div class="centered-page">
+    <h2>Create Account</h2>
+
+
+
+    <form action="{{ url_for('submit_account_creation') }}" method="POST" class="login-form">
+        <div class="form-field">
+            <label for="username">Choose Username:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+
+        <div class="form-field">
+            <label for="password">Choose Password:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+
+        {% if error %}
+        <p class="form-error">{{ error }}</p>
+        {% endif %}
+
+        <button type="submit" class="button" style="margin-top: 20px;">Submit & Join</button>
+    </form>
+
+    <p style="margin-top: 20px; color: #666;">Already have an account?</p>
+
+    <form action="{{ url_for('login') }}" method="GET">
+        <button type="submit" class="button">Back to Login</button>
+    </form>
+</div>
+{% endblock %}
+
+

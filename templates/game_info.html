@@ -1,68 +1,88 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Info</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        .chain-item { margin: 20px 0; }
-        .arrow { font-size: 24px; color: gray; }
-        .ellipsis { font-size: 24px; color: gray; }
-        .return-button { margin-top: 20px; padding: 10px 20px; }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Game Info{% endblock %}
+{% block page_class %}game-stage{% endblock %}
 
-    <h1>Game Info</h1>
+{% block content %}
+<div class="centered-page game-stage">
+
+
+    
+
+
+
+    <h1 style="color: var(--primary);">Game Chain</h1>
+
 
     <!-- Start Point -->
     <div class="chain-item">
-        <h2>{{ start_end.start_actor_name }}</h2>
-        <img src="{{ start_end.start_actor_picture }}" alt="Start Actor" width="100">
+        <div class="move-panel">
+            <img src="{{ start_end.start_actor_picture }}" alt="Start Actor" class="move-image">
+            <p class="move-label"><strong>{{ start_end.start_actor_name }}</strong></p>
+        </div>
     </div>
 
     {% if has_moves %}
-        <div class="arrow">↓</div>
+    <div class="arrow">⬇</div>
 
-        <!-- Chain Moves -->
-        {% for move in chain %}
+    {% for move in chain %}
+    <div class="chain-item">
+        <div class="move-panel">
             {% if loop.index % 2 == 1 %}
-                <!-- Display Movie on Odd Move Number -->
-                <div class="chain-item">
-                    <h3>{{ move.movie_title }}</h3>
-                    <img src="{{ move.movie_poster }}" alt="Movie Poster" width="100">
-                </div>
+            <img src="{{ move.movie_poster }}" alt="Movie Poster" class="move-image">
+            <p class="move-label"><strong>{{ move.movie_title }}</strong></p>
             {% else %}
-                <!-- Display Actor on Even Move Number -->
-                <div class="chain-item">
-                    <h3>{{ move.actor_name }}</h3>
-                    <img src="{{ move.actor_picture }}" alt="Actor Picture" width="100">
-                </div>
+            <img src="{{ move.actor_picture }}" alt="Actor Picture" class="move-image">
+            <p class="move-label"><strong>{{ move.actor_name }}</strong></p>
             {% endif %}
-            {% if not loop.last %}
-                <div class="arrow">↓</div>
-            {% endif %}
-        {% endfor %}
-    {% else %}
-        <!-- Display End Point Only if No Moves Exist -->
-        <div class="ellipsis">...</div>
-        <div class="chain-item">
-            <h2>{{ start_end.end_actor_name }}</h2>
-            <img src="{{ start_end.end_actor_picture }}" alt="End Actor" width="100">
         </div>
+    </div>
+    {% if not loop.last %}
+    <div class="arrow">⬇</div>
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="ellipsis">...</div>
+    <div class="chain-item">
+        <div class="move-panel">
+            <img src="{{ start_end.end_actor_picture }}" alt="End Actor" class="move-image">
+            <p class="move-label"><strong>{{ start_end.end_actor_name }}</strong></p>
+        </div>
+    </div>
     {% endif %}
 
-    <!-- Return Button
-    <button class="return-button" onclick="window.history.back()">Return</button>-->
-    <button class="return-button" onclick="window.location.href='/user_home?user_id={{ user_id }}&username={{ username }}'">
-        Return to User Home
-    </button>
 
+    <!-- Right: Hint Table -->
+    <div class="hints-column">
+        <h2>Player Hint Usage</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Hints Used</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for player in players_hints %}
+                <tr>
+                    <td>{{ player.username }}</td>
+                    <td>{{ player.hints }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
+    <div>
+        <button class="button" onclick="window.location.href='/user_home?user_id={{ user_id }}&username={{ username }}'">
+            Return to User Home
+        </button>
 
+        <button class="button" onclick="window.location.href='/alternate_chain/{{ game_id }}?user_id={{ user_id }}&username={{ username }}'">
+            View Alternate Chain
+        </button>
+    </div>
+</div>
+{% endblock %}
 
-</body>
-</html>
 
 

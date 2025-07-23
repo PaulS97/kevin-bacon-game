@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Alternate Chain{% endblock %}
+{% block page_class %}game-stage{% endblock %}
+
+{% block content %}
+<div class="centered-page game-stage">
+
+    <h1 style="color: var(--primary);">Alternate Chain</h1>
+
+    <!-- Start Actor -->
+    <div class="chain-item">
+        <div class="move-panel">
+            <img src="{{ start_actor.picture }}" alt="Start Actor" class="move-image">
+            <p class="move-label"><strong>{{ start_actor.name }}</strong></p>
+        </div>
+    </div>
+
+    <div class="arrow">⬇</div>
+
+    <!-- Chain -->
+    {% for move in chain %}
+    <div class="chain-item">
+        <div class="move-panel">
+            {% if move.type == "movie" %}
+            <img src="{{ move.poster }}" alt="Movie Poster" class="move-image">
+            <p class="move-label"><strong>{{ move.title }}</strong></p>
+            {% else %}
+            <img src="{{ move.picture }}" alt="Actor Picture" class="move-image">
+            <p class="move-label"><strong>{{ move.name }}</strong></p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not loop.last %}
+    <div class="arrow">⬇</div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- End Actor -->
+    <div class="arrow">⬇</div>
+    <div class="chain-item">
+        <div class="move-panel">
+            <img src="{{ end_actor.picture }}" alt="End Actor" class="move-image">
+            <p class="move-label"><strong>{{ end_actor.name }}</strong></p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div style="margin-top: 30px;">
+        <button class="button" onclick="window.location.href='/game_info/{{ game_id }}?user_id={{ user_id }}&username={{ username }}'">
+            Back to Game Info
+        </button>
+        <button class="button" onclick="window.location.href='/user_home?user_id={{ user_id }}&username={{ username }}'">
+            Return to User Home
+        </button>
+    </div>
+
+</div>
+{% endblock %}
+
+
+
