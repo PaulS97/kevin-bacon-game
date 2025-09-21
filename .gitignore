@@ -8,3 +8,7 @@ datasets/
 # Ignore macOS and virtual env
 .DS_Store
 venv/
+
+# But keep processed datasets
+!db/datasets/
+!db/datasets/*.csv
